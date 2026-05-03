@@ -1,0 +1,12 @@
+routes:
+  - path: /users
+    method: GET
+    upstream: 
+        url: https://jsonplaceholder.typicode.com/users
+        method: GET
+
+  - path: /posts
+    method: GET
+    upstream: 
+        url: https://jsonplaceholder.typicode.com/posts
+        method: GET
