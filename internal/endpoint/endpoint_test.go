@@ -79,11 +79,18 @@ func TestEndpoint(t *testing.T) {
 	if e.Path != p {
 		t.Fatalf("expected path %s, but got %s", p, e.Path)
 	}
-	if e.Target != url {
-		t.Fatalf("expected target %s, but got %s", url, e.Target)
-	}
 	if e.Method != endpoint.GET {
 		t.Fatalf("expected method %s, but got %s", endpoint.GET, e.Method)
+	}
+	if e.Upstream == nil {
+		t.Fatalf("expected non-nil upstream, but got nil")
+	}
+
+	if e.Upstream.URL != url {
+		t.Fatalf("expected target %s, but got %s", url, e.Upstream.URL)
+	}
+	if e.Upstream.Method != endpoint.GET {
+		t.Fatalf("expected upstream method %s, but got %s", endpoint.GET, e.Upstream.Method)
 	}
 }
 
@@ -178,11 +185,14 @@ func TestEndpointFromConfig(t *testing.T) {
 				if end.Method != endpoint.Method(test.cfg.Method) {
 					t.Fatalf("expected method %s, but got %s", test.cfg.Method, end.Method)
 				}
-				if end.Target != endpoint.URL(test.cfg.Upstream.URL) {
-					t.Fatalf("expected upstream url %s, but got %s", test.cfg.Upstream.URL, end.Target)
+				if end.Upstream == nil {
+					t.Fatal("expected non-nil upstream, but got nil")
 				}
-				if end.TargetMethod != endpoint.Method(test.cfg.Upstream.Method) {
-					t.Fatalf("expected upstream method %s, but got %s", test.cfg.Upstream.Method, end.TargetMethod)
+				if end.Upstream.URL != endpoint.URL(test.cfg.Upstream.URL) {
+					t.Fatalf("expected upstream url %s, but got %s", test.cfg.Upstream.URL, end.Upstream.URL)
+				}
+				if end.Upstream.Method != endpoint.Method(test.cfg.Upstream.Method) {
+					t.Fatalf("expected upstream method %s, but got %s", test.cfg.Upstream.Method, end.Upstream.Method)
 				}
 			}
 		})

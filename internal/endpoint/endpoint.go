@@ -8,18 +8,16 @@ import (
 )
 
 type Endpoint struct {
-	Path         Path
-	Method       Method
-	Target       URL
-	TargetMethod Method
+	Path     Path
+	Method   Method
+	Checks   []Check
+	Upstream *Upstream
 }
 
 func NewEndpoint(path Path, method Method, target URL, targetMethod Method) *Endpoint {
 	return &Endpoint{
-		Path:         path,
-		Method:       method,
-		Target:       target,
-		TargetMethod: targetMethod,
+		Path:   path,
+		Method: method,
 	}
 }
 
@@ -36,25 +34,20 @@ func NewEndpointFromConfig(cfg *config.RouteConfig) (*Endpoint, error) {
 	if err != nil {
 		return nil, err
 	}
-	target, err := NewURL(cfg.Upstream.URL)
+
+	if cfg.Upstream.Method == "" {
+		cfg.Upstream.Method = cfg.Method
+	}
+
+	upstream, err := NewUpstreamFromConfig(&cfg.Upstream)
 	if err != nil {
 		return nil, err
 	}
 
-	tm := cfg.Upstream.Method
-	if tm == "" {
-		tm = cfg.Method
-	}
-
-	targetMethod, err := NewMethod(tm)
-	if err != nil {
-		return nil, err
-	}
 	return &Endpoint{
-		Path:         path,
-		Method:       method,
-		Target:       target,
-		TargetMethod: targetMethod,
+		Path:     path,
+		Method:   method,
+		Upstream: upstream,
 	}, nil
 }
 
@@ -75,9 +68,9 @@ func (e *Endpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	var resp *http.Response
 	var err error
-	switch e.TargetMethod {
+	switch e.Upstream.Method {
 	case GET:
-		resp, err = http.Get(string(e.Target))
+		resp, err = http.Get(string(e.Upstream.URL))
 		defer resp.Body.Close()
 		if err != nil {
 			w.WriteHeader(http.StatusBadGateway)
@@ -85,7 +78,7 @@ func (e *Endpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	case POST:
 		// TODO: На данный момент тип контента один
-		resp, err = http.Post(string(e.Target), "text/plain", nil)
+		resp, err = http.Post(string(e.Upstream.URL), "text/plain", nil)
 		defer resp.Body.Close()
 		if err != nil {
 			w.WriteHeader(http.StatusBadGateway)
