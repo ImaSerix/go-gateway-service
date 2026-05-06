@@ -16,8 +16,8 @@ func TestUpstreamFromConfig(t *testing.T) {
 		{
 			name: "success",
 			cfg: &config.Upstream{
-				
-			},
+				URL:    "https://jsonplaceholder.typicode.com/users",
+				Method: "GET",
 			},
 			expError: nil,
 		},
@@ -27,57 +27,25 @@ func TestUpstreamFromConfig(t *testing.T) {
 			expError: endpoint.ErrInvalidConfig,
 		},
 		{
-			name: "invalid path",
-			cfg: &config.RouteConfig{
-				Path:   "",
+			name: "invalid url",
+			cfg: &config.Upstream{
+				URL:    "https:///users",
 				Method: "GET",
-				Upstream: config.Upstream{
-					URL:    "https://jsonplaceholder.typicode.com/users",
-					Method: "GET",
-				},
-			},
-			expError: endpoint.ErrEmptyPath,
-		},
-		{
-			name: "invalid method",
-			cfg: &config.RouteConfig{
-				Path:   "/nice/path",
-				Method: "INVALID",
-				Upstream: config.Upstream{
-					URL:    "https://jsonplaceholder.typicode.com/users",
-					Method: "GET",
-				},
-			},
-			expError: endpoint.ErrInvalidMethod,
-		},
-		{
-			name: "invalid URL",
-			cfg: &config.RouteConfig{
-				Path:   "/nice/path",
-				Method: "GET",
-				Upstream: config.Upstream{
-					URL:    "https:///users",
-					Method: "GET",
-				},
 			},
 			expError: endpoint.ErrEmptyHost,
 		},
 		{
-			name: "invalid target method",
-			cfg: &config.RouteConfig{
-				Path:   "/nice/path",
-				Method: "GET",
-				Upstream: config.Upstream{
-					URL:    "https://jsonplaceholder.typicode.com/users",
-					Method: "INVALID",
-				},
+			name: "invalid method",
+			cfg: &config.Upstream{
+				URL:    "https://jsonplaceholder.typicode.com/users",
+				Method: "INVALID",
 			},
 			expError: endpoint.ErrInvalidMethod,
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			end, err := endpoint.NewEndpointFromConfig(test.cfg)
+			end, err := endpoint.NewUpstreamFromConfig(test.cfg)
 			if err != test.expError {
 				t.Fatalf("expected error %v, but got %v", test.expError, err)
 			}
@@ -88,20 +56,11 @@ func TestUpstreamFromConfig(t *testing.T) {
 				t.Fatal("got nil endpoint, but no error")
 			}
 			if end != nil && test.cfg != nil {
-				if end.Path != endpoint.Path(test.cfg.Path) {
-					t.Fatalf("expected path %s, but got %s", test.cfg.Path, end.Path)
+				if end.URL != endpoint.URL(test.cfg.URL) {
+					t.Fatalf("expected upstream url %s, but got %s", test.cfg.URL, end.URL)
 				}
 				if end.Method != endpoint.Method(test.cfg.Method) {
-					t.Fatalf("expected method %s, but got %s", test.cfg.Method, end.Method)
-				}
-				if end.Upstream == nil {
-					t.Fatal("expected non-nil upstream, but got nil")
-				}
-				if end.Upstream.URL != endpoint.URL(test.cfg.Upstream.URL) {
-					t.Fatalf("expected upstream url %s, but got %s", test.cfg.Upstream.URL, end.Upstream.URL)
-				}
-				if end.Upstream.Method != endpoint.Method(test.cfg.Upstream.Method) {
-					t.Fatalf("expected upstream method %s, but got %s", test.cfg.Upstream.Method, end.Upstream.Method)
+					t.Fatalf("expected upstream method %s, but got %s", test.cfg.Method, end.Method)
 				}
 			}
 		})

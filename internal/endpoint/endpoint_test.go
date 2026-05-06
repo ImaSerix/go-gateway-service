@@ -141,30 +141,6 @@ func TestEndpointFromConfig(t *testing.T) {
 			},
 			expError: endpoint.ErrInvalidMethod,
 		},
-		{
-			name: "invalid URL",
-			cfg: &config.RouteConfig{
-				Path:   "/nice/path",
-				Method: "GET",
-				Upstream: config.Upstream{
-					URL:    "https:///users",
-					Method: "GET",
-				},
-			},
-			expError: endpoint.ErrEmptyHost,
-		},
-		{
-			name: "invalid target method",
-			cfg: &config.RouteConfig{
-				Path:   "/nice/path",
-				Method: "GET",
-				Upstream: config.Upstream{
-					URL:    "https://jsonplaceholder.typicode.com/users",
-					Method: "INVALID",
-				},
-			},
-			expError: endpoint.ErrInvalidMethod,
-		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

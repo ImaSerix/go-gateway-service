@@ -14,7 +14,13 @@ type Config struct {
 type RouteConfig struct {
 	Path     string   `yaml:"path"`
 	Method   string   `yaml:"method"`
+	Checks   []Check  `yaml:"checks"`
 	Upstream Upstream `yaml:"upstream"`
+}
+
+type Check struct {
+	Type   string    `yaml:"type"`
+	Config yaml.Node `yaml:"config"`
 }
 
 type Upstream struct {
