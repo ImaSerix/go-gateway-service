@@ -39,6 +39,14 @@ func TestRateLimitCheck(t *testing.T) {
 			expErr: checks.ErrInvalidWindow,
 		},
 		{
+			name: "invalid duration: 0 duration",
+			cfg: &config.RateLimitCheckConfig{
+				Limit:  50,
+				Window: "0s",
+			},
+			expErr: checks.ErrInvalidWindow,
+		},
+		{
 			name: "negative limit",
 			cfg: &config.RateLimitCheckConfig{
 				Limit:  -1,

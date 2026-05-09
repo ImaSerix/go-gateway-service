@@ -8,7 +8,7 @@ import (
 	"github.com/ImaSerix/go-gateway-service/internal/config"
 )
 
-const QueryRequiredCheckType = "required_query "
+const QueryRequiredCheckType = "required_query"
 
 type QueryRequiredCheck struct {
 	requiredQueries []string

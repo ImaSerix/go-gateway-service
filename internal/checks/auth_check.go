@@ -50,13 +50,22 @@ func NewAuthCheck(cfg *config.AuthCheckConfig, client *http.Client) (*AuthCheck,
 		return nil, ErrNilClient
 	}
 
+	expectedStatus := cfg.ExpectedStatus
+	if expectedStatus == 0 {
+		expectedStatus = http.StatusOK
+	}
+
+	if expectedStatus < 100 || expectedStatus > 599 {
+		return nil, ErrInvalidExpectedStatus
+	}
+
 	return &AuthCheck{
 		url:            cfg.URL,
 		method:         m,
 		forwardHeaders: cfg.ForwardHeaders,
 		storeBody:      cfg.Store.Body,
 		storeHeaders:   cfg.Store.Headers,
-		expectedStatus: cfg.ExpectedStatus,
+		expectedStatus: expectedStatus,
 		client:         client,
 	}, nil
 }
@@ -66,7 +75,7 @@ func (c *AuthCheck) Execute(ctx context.Context, r *http.Request) (context.Conte
 		return ctx, ErrNilRequest
 	}
 
-	req, err := http.NewRequest(string(c.method), c.url, nil)
+	req, err := http.NewRequestWithContext(ctx, string(c.method), c.url, nil)
 	if err != nil {
 		return ctx, fmt.Errorf("auth check: create request: %w", err)
 	}

@@ -36,7 +36,7 @@ func (c *TimeoutCheck) Execute(ctx context.Context, r *http.Request) (context.Co
 		return ctx, ErrNilRequest
 	}
 
-	//TODO: Сейчас cancel игнорируется может быть позже имеет смысл перенести в middlewarе
+	//TODO: Сейчас cancel игнорируется может быть позже имеет смысл перенести в middlewarе и там уже делать что-то с этим
 	ctx, _ = context.WithTimeout(ctx, c.duration)
 	return ctx, nil
 }

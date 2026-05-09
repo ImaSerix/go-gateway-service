@@ -14,11 +14,11 @@ type AuthCheckConfig struct {
 }
 
 type HeaderRequiredCheckConfig struct {
-	Headers []string `yaml:"headhers"`
+	Headers []string `yaml:"headers"`
 }
 
 type QueryRequiredCheckConfig struct {
-	Queries []string `yaml:"Queries"`
+	Queries []string `yaml:"queries"`
 }
 
 type IPWhiteListCheckConfig struct {

@@ -78,6 +78,28 @@ func TestIPWhitelistCheck_Execute_Success(t *testing.T) {
 	}
 }
 
+func TestIPWhitelistCheck_Execute_WithPort(t *testing.T) {
+	cfg := &config.IPWhiteListCheckConfig{
+		IP: []string{
+			"127.0.0.1",
+			"192.168.0.1",
+		},
+	}
+
+	c, err := checks.NewIPWhiteListCheck(cfg)
+	if err != nil {
+		t.Fatalf("expected no error, but got %v", err)
+	}
+
+	req := httptest.NewRequest("GET", "http://nice.url?name=name&category=category", nil)
+	req.RemoteAddr = "127.0.0.1:55555"
+
+	_, err = c.Execute(context.Background(), req)
+	if err != nil {
+		t.Fatalf("expected no error, but got %v", err)
+	}
+}
+
 func TestIPWhitelistCheck_Execute_RequestNil(t *testing.T) {
 	cfg := &config.IPWhiteListCheckConfig{
 		IP: []string{

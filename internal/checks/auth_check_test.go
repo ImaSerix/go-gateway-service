@@ -34,6 +34,20 @@ func TestAuthCheck(t *testing.T) {
 			expErr: nil,
 		},
 		{
+			name: "invalid expected status",
+			cfg: &config.AuthCheckConfig{
+				URL: "http://nice.url",
+				ForwardHeaders: map[string]string{
+					"X-Username": "X-Username",
+					"X-Password": "X-Password",
+				},
+				Method:         "POST",
+				ExpectedStatus: 99,
+			},
+			client: http.DefaultClient,
+			expErr: checks.ErrInvalidExpectedStatus,
+		},
+		{
 			name:   "nil cfg",
 			cfg:    nil,
 			expErr: checks.ErrNilConfig,
@@ -43,8 +57,9 @@ func TestAuthCheck(t *testing.T) {
 			cfg: &config.AuthCheckConfig{
 				URL: "://bad.url",
 				ForwardHeaders: map[string]string{
-					"X-Username": "X-Username",
-					"X-Password": "X-Password",
+					"X-Username":  "X-Username",
+					"tokenHeader": "X-Token",
+					"X-Password":  "X-Password",
 				},
 				Method: "POST",
 			},
@@ -168,6 +183,7 @@ func TestAuthCheck_Execute_Success(t *testing.T) {
 		},
 		ExpectedStatus: 200,
 	}
+
 	token := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWUsImlhdCI6MTUxNjIzOTAyMn0.KMUFsIDTnFmyG3nMiGM6H9FNFUROf3wh7SmqJp-QV30"
 	c, srv, req, ctx, gotUsername, gotPassword := SetupAuthCheck_Execute(token, http.DefaultClient, cfg)
 	defer srv.Close()

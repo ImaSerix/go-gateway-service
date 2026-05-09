@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"slices"
+	"strings"
 
 	"github.com/ImaSerix/go-gateway-service/internal/config"
 )
@@ -34,7 +35,9 @@ func (c *IPWhitelistCheck) Execute(ctx context.Context, r *http.Request) (contex
 		return ctx, ErrNilRequest
 	}
 
-	if !slices.Contains(c.ip, r.RemoteAddr) {
+	split := strings.Split(r.RemoteAddr, ":")
+
+	if !slices.Contains(c.ip, split[0]) {
 		return ctx, ErrForbidden
 	}
 
