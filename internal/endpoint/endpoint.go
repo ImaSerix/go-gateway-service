@@ -66,6 +66,7 @@ func (e *Endpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	//TODO: нужно сделать с контекстом, иначе херня
 	var resp *http.Response
 	var err error
 	switch e.Upstream.Method {

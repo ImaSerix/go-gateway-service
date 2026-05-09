@@ -12,3 +12,28 @@ type AuthCheckConfig struct {
 	Store          Store             `yaml:"store"`
 	ExpectedStatus int               `yaml:"expected_status"`
 }
+
+type HeaderRequiredCheckConfig struct {
+	Headers []string `yaml:"headhers"`
+}
+
+type QueryRequiredCheckConfig struct {
+	Queries []string `yaml:"Queries"`
+}
+
+type IPWhiteListCheckConfig struct {
+	IP []string `yaml:"ip"`
+}
+
+type RateLimitCheckConfig struct {
+	Limit  int    `yaml:"limit"`
+	Window string `yaml:"window"`
+}
+
+type InjectCheckConfig struct {
+	Ctx map[string]any `yaml:"ctx"`
+}
+
+type TimeoutCheckConfig struct {
+	Duration string `yaml:"duration"`
+}
