@@ -14,7 +14,7 @@ func NewUpstream(url URL, method Method) *Upstream {
 	}
 }
 
-func NewUpstreamFromConfig(cfg *config.Upstream) (*Upstream, error) {
+func NewUpstreamFromConfig(cfg *config.UpstreamConfig) (*Upstream, error) {
 	if cfg == nil {
 		return nil, ErrInvalidConfig
 	}

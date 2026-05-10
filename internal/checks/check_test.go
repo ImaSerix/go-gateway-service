@@ -11,7 +11,7 @@ import (
 )
 
 func TestCheck_AuthCheck(t *testing.T) {
-	cfg := &config.Check{
+	cfg := config.CheckConfig{
 		Type:   checks.AuthCheckType,
 		Config: yaml.Node{},
 	}
@@ -40,7 +40,7 @@ func TestCheck_AuthCheck(t *testing.T) {
 }
 
 func TestCheck_HeaderRequiredCheck(t *testing.T) {
-	cfg := &config.Check{
+	cfg := config.CheckConfig{
 		Type:   checks.HeaderRequiredCheckType,
 		Config: yaml.Node{},
 	}
@@ -67,7 +67,7 @@ func TestCheck_HeaderRequiredCheck(t *testing.T) {
 }
 
 func TestCheck_InjectCheck(t *testing.T) {
-	cfg := &config.Check{
+	cfg := config.CheckConfig{
 		Type:   checks.InjectCheckType,
 		Config: yaml.Node{},
 	}
@@ -94,7 +94,7 @@ func TestCheck_InjectCheck(t *testing.T) {
 }
 
 func TestCheck_IPWhitelistCheck(t *testing.T) {
-	cfg := &config.Check{
+	cfg := config.CheckConfig{
 		Type:   checks.IPWhiteListCheckType,
 		Config: yaml.Node{},
 	}
@@ -121,7 +121,7 @@ func TestCheck_IPWhitelistCheck(t *testing.T) {
 }
 
 func TestCheck_TimeoutCheck(t *testing.T) {
-	cfg := &config.Check{
+	cfg := config.CheckConfig{
 		Type:   checks.TimeoutCheckType,
 		Config: yaml.Node{},
 	}
@@ -145,7 +145,7 @@ func TestCheck_TimeoutCheck(t *testing.T) {
 }
 
 func TestCheck_QueryRequiredCheck(t *testing.T) {
-	cfg := &config.Check{
+	cfg := config.CheckConfig{
 		Type:   checks.QueryRequiredCheckType,
 		Config: yaml.Node{},
 	}
@@ -172,7 +172,7 @@ func TestCheck_QueryRequiredCheck(t *testing.T) {
 }
 
 func TestCheck_RateLimitCheck(t *testing.T) {
-	cfg := &config.Check{
+	cfg := config.CheckConfig{
 		Type:   checks.RateLimitCheckType,
 		Config: yaml.Node{},
 	}
@@ -197,7 +197,7 @@ func TestCheck_RateLimitCheck(t *testing.T) {
 }
 
 func TestCheck_UnsupportedType(t *testing.T) {
-	cfg := &config.Check{
+	cfg := config.CheckConfig{
 		Type:   "unsupported",
 		Config: yaml.Node{},
 	}

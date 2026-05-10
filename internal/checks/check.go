@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/ImaSerix/go-gateway-service/internal/config"
-	"github.com/ImaSerix/go-gateway-service/internal/endpoint"
+	"github.com/ImaSerix/go-gateway-service/internal/pipeline"
 )
 
 type Method string
@@ -26,7 +26,22 @@ func NewMethod(m string) (Method, error) {
 	}
 }
 
-func CheckFactory(cfg *config.Check, client *http.Client) (endpoint.Check, error) {
+func ChecksFactory(cfg []config.CheckConfig, client *http.Client) ([]pipeline.Checker, error) {
+
+	res := []pipeline.Checker{}
+	for _, c := range cfg {
+		checker, err := CheckFactory(c, client)
+		if err != nil {
+			return nil, err
+		}
+		res = append(res, checker)
+	}
+	return res, nil
+
+}
+
+func CheckFactory(cfg config.CheckConfig, client *http.Client) (pipeline.Checker, error) {
+
 	switch cfg.Type {
 	case AuthCheckType:
 
@@ -101,4 +116,5 @@ func CheckFactory(cfg *config.Check, client *http.Client) (endpoint.Check, error
 	default:
 		return nil, ErrUnsupportedType
 	}
+
 }

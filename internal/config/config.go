@@ -12,18 +12,24 @@ type Config struct {
 }
 
 type RouteConfig struct {
-	Path     string   `yaml:"path"`
-	Method   string   `yaml:"method"`
-	Checks   []Check  `yaml:"checks"`
-	Upstream Upstream `yaml:"upstream"`
+	Path      string          `yaml:"path"`
+	Method    string          `yaml:"method"`
+	Checks    []CheckConfig   `yaml:"check"`
+	Upstream  UpstreamConfig  `yaml:"upstream"`
+	Transform TransformConfig `yaml:"transform"`
 }
 
-type Check struct {
+type TransformConfig struct {
+	Header map[string]any `yaml:"header"`
+	Body   map[string]any `yaml:"body"`
+}
+
+type CheckConfig struct {
 	Type   string    `yaml:"type"`
 	Config yaml.Node `yaml:"config"`
 }
 
-type Upstream struct {
+type UpstreamConfig struct {
 	URL    string `yaml:"url"`
 	Method string `yaml:"method"`
 }

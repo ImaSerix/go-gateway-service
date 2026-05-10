@@ -4,20 +4,24 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/ImaSerix/go-gateway-service/internal/checks"
 	"github.com/ImaSerix/go-gateway-service/internal/config"
 )
 
 type Endpoint struct {
-	Path     Path
-	Method   Method
-	Checks   []Check
-	Upstream *Upstream
+	path         Path
+	method       Method
+	upstream     *Upstream
+	checks       []Checker
+	transformers []Transformer
 }
 
-func NewEndpoint(path Path, method Method, target URL, targetMethod Method) *Endpoint {
+func NewEndpoint(path Path, method Method, upstream *Upstream, checks []Checker, transformers []Transformer) *Endpoint {
 	return &Endpoint{
-		Path:   path,
-		Method: method,
+		path:         path,
+		method:       method,
+		checks:       checks,
+		transformers: transformers,
 	}
 }
 
@@ -44,19 +48,22 @@ func NewEndpointFromConfig(cfg *config.RouteConfig) (*Endpoint, error) {
 		return nil, err
 	}
 
+	checks, err := checks.ChecksFactory(cfg.Checks, http.DefaultClient)
+
 	return &Endpoint{
-		Path:     path,
-		Method:   method,
-		Upstream: upstream,
+		path:     path,
+		method:   method,
+		upstream: upstream,
+		checks:   checks,
 	}, nil
 }
 
 func (e *Endpoint) matchMethod(method string) bool {
-	return e.Method == Method(method)
+	return e.method == Method(method)
 }
 
 func (e *Endpoint) Pattern() string {
-	return string(e.Method) + " " + string(e.Path)
+	return string(e.method) + " " + string(e.path)
 }
 
 func (e *Endpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {

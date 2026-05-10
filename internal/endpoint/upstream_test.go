@@ -10,12 +10,12 @@ import (
 func TestUpstreamFromConfig(t *testing.T) {
 	tests := []struct {
 		name     string
-		cfg      *config.Upstream
+		cfg      *config.UpstreamConfig
 		expError error
 	}{
 		{
 			name: "success",
-			cfg: &config.Upstream{
+			cfg: &config.UpstreamConfig{
 				URL:    "https://jsonplaceholder.typicode.com/users",
 				Method: "GET",
 			},
@@ -28,7 +28,7 @@ func TestUpstreamFromConfig(t *testing.T) {
 		},
 		{
 			name: "invalid url",
-			cfg: &config.Upstream{
+			cfg: &config.UpstreamConfig{
 				URL:    "https:///users",
 				Method: "GET",
 			},
@@ -36,7 +36,7 @@ func TestUpstreamFromConfig(t *testing.T) {
 		},
 		{
 			name: "invalid method",
-			cfg: &config.Upstream{
+			cfg: &config.UpstreamConfig{
 				URL:    "https://jsonplaceholder.typicode.com/users",
 				Method: "INVALID",
 			},
