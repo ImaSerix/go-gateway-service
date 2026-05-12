@@ -14,14 +14,14 @@ type Config struct {
 type RouteConfig struct {
 	Path      string          `yaml:"path"`
 	Method    string          `yaml:"method"`
-	Checks    []CheckConfig   `yaml:"check"`
+	Checks    []CheckConfig   `yaml:"checks"`
 	Upstream  UpstreamConfig  `yaml:"upstream"`
 	Transform TransformConfig `yaml:"transform"`
 }
 
 type TransformConfig struct {
-	Header map[string]any `yaml:"header"`
-	Body   map[string]any `yaml:"body"`
+	Header map[string]string `yaml:"header"`
+	Body   map[string]any    `yaml:"body"`
 }
 
 type CheckConfig struct {

@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/ImaSerix/go-gateway-service/internal/config"
 )
@@ -96,14 +97,18 @@ func (c *AuthCheck) Execute(ctx context.Context, r *http.Request) (context.Conte
 		return ctx, ErrUnauthorized
 	}
 
-	var body map[string]any
-	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil && err != io.EOF {
-		return ctx, fmt.Errorf("auth check: decode body: %w", err)
-	}
+	if strings.HasPrefix(resp.Header.Get("Content-Type"), "application/json") {
+		var body any
+		if err := json.NewDecoder(resp.Body).Decode(&body); err != nil && err != io.EOF {
+			return ctx, fmt.Errorf("auth check: decode body: %w", err)
+		}
 
-	for ctxKey, bodyKey := range c.storeBody {
-		if val, ok := body[bodyKey]; ok {
-			ctx = context.WithValue(ctx, ctxKey, val)
+		if m, ok := body.(map[string]any); ok {
+			for ctxKey, bodyKey := range c.storeBody {
+				if val, ok := m[bodyKey]; ok {
+					ctx = context.WithValue(ctx, ctxKey, val)
+				}
+			}
 		}
 	}
 

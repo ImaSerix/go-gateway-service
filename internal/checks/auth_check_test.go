@@ -147,6 +147,7 @@ func SetupAuthCheck_Execute(token string, client *http.Client, cfg *config.AuthC
 		gotPassword = r.Header.Get("X-Password")
 
 		w.Header().Set("X-Token", token)
+		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(200)
 		json.NewEncoder(w).Encode(struct {
 			Token string `json:"token"`
@@ -302,5 +303,76 @@ func TestAuthCheck_Execute_Unauthorized(t *testing.T) {
 	}
 	if v := newCtx.Value("tokenHeader"); v != nil {
 		t.Fatalf("expected in context empty tokenHeader, but got %s", v)
+	}
+}
+
+func TestAuthCheck_Execute_Success_EmptyBody(t *testing.T) {
+	cfg := &config.AuthCheckConfig{
+		ForwardHeaders: map[string]string{
+			"X-Username": "X-Username",
+			"X-Password": "X-Password",
+		},
+		Method: "POST",
+		Store: config.Store{
+			Body: map[string]string{
+				"token": "token",
+			},
+			Headers: map[string]string{
+				"tokenHeader": "X-Token",
+			},
+		},
+		ExpectedStatus: 200,
+	}
+
+	token := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWUsImlhdCI6MTUxNjIzOTAyMn0.KMUFsIDTnFmyG3nMiGM6H9FNFUROf3wh7SmqJp-QV30"
+	_, srv, req, ctx, _, _ := SetupAuthCheck_Execute(token, http.DefaultClient, cfg)
+	srv.Close()
+
+	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(200)
+	}))
+
+	cfg.URL = srv.URL
+	c, _ := checks.NewAuthCheck(cfg, http.DefaultClient)
+
+	_, err := c.Execute(ctx, req)
+	if err != nil {
+		t.Fatalf("expected nil error, but got %v", err)
+	}
+}
+
+func TestAuthCheck_Execute_Success_BodyPrimitive(t *testing.T) {
+	cfg := &config.AuthCheckConfig{
+		ForwardHeaders: map[string]string{
+			"X-Username": "X-Username",
+			"X-Password": "X-Password",
+		},
+		Method: "POST",
+		Store: config.Store{
+			Body: map[string]string{
+				"token": "token",
+			},
+			Headers: map[string]string{
+				"tokenHeader": "X-Token",
+			},
+		},
+		ExpectedStatus: 200,
+	}
+
+	token := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWUsImlhdCI6MTUxNjIzOTAyMn0.KMUFsIDTnFmyG3nMiGM6H9FNFUROf3wh7SmqJp-QV30"
+	_, srv, req, ctx, _, _ := SetupAuthCheck_Execute(token, http.DefaultClient, cfg)
+	srv.Close()
+
+	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(200)
+		w.Write([]byte("priimitive"))
+	}))
+
+	cfg.URL = srv.URL
+	c, _ := checks.NewAuthCheck(cfg, http.DefaultClient)
+
+	_, err := c.Execute(ctx, req)
+	if err != nil {
+		t.Fatalf("expected nil error, but got %v", err)
 	}
 }

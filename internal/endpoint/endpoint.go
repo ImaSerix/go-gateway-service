@@ -1,61 +1,27 @@
 package endpoint
 
 import (
-	"io"
 	"net/http"
 
-	"github.com/ImaSerix/go-gateway-service/internal/checks"
-	"github.com/ImaSerix/go-gateway-service/internal/config"
+	"github.com/ImaSerix/go-gateway-service/internal/pipeline"
 )
 
 type Endpoint struct {
 	path         Path
 	method       Method
-	upstream     *Upstream
-	checks       []Checker
-	transformers []Transformer
+	checks       []pipeline.Checker
+	transformers []pipeline.Transformer
+	proxy        pipeline.Proxy
 }
 
-func NewEndpoint(path Path, method Method, upstream *Upstream, checks []Checker, transformers []Transformer) *Endpoint {
+func NewEndpoint(path Path, method Method, checks []pipeline.Checker, transformers []pipeline.Transformer, proxy pipeline.Proxy) *Endpoint {
 	return &Endpoint{
 		path:         path,
 		method:       method,
 		checks:       checks,
 		transformers: transformers,
+		proxy:        proxy,
 	}
-}
-
-func NewEndpointFromConfig(cfg *config.RouteConfig) (*Endpoint, error) {
-	if cfg == nil {
-		return nil, ErrInvalidConfig
-	}
-
-	path, err := NewPath(cfg.Path)
-	if err != nil {
-		return nil, err
-	}
-	method, err := NewMethod(cfg.Method)
-	if err != nil {
-		return nil, err
-	}
-
-	if cfg.Upstream.Method == "" {
-		cfg.Upstream.Method = cfg.Method
-	}
-
-	upstream, err := NewUpstreamFromConfig(&cfg.Upstream)
-	if err != nil {
-		return nil, err
-	}
-
-	checks, err := checks.ChecksFactory(cfg.Checks, http.DefaultClient)
-
-	return &Endpoint{
-		path:     path,
-		method:   method,
-		upstream: upstream,
-		checks:   checks,
-	}, nil
 }
 
 func (e *Endpoint) matchMethod(method string) bool {
@@ -73,41 +39,28 @@ func (e *Endpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	//TODO: нужно сделать с контекстом, иначе херня
-	var resp *http.Response
-	var err error
-	switch e.Upstream.Method {
-	case GET:
-		resp, err = http.Get(string(e.Upstream.URL))
-		defer resp.Body.Close()
+	ctx := r.Context()
+
+	for _, c := range e.checks {
+
+		var err error
+
+		ctx, err = c.Execute(ctx, r)
 		if err != nil {
-			w.WriteHeader(http.StatusBadGateway)
+			http.Error(w, err.Error(), http.StatusForbidden)
 			return
 		}
-	case POST:
-		// TODO: На данный момент тип контента один
-		resp, err = http.Post(string(e.Upstream.URL), "text/plain", nil)
-		defer resp.Body.Close()
+	}
+
+	r = r.WithContext(ctx)
+
+	for _, t := range e.transformers {
+		err := t.Transform(r.Context(), r)
 		if err != nil {
-			w.WriteHeader(http.StatusBadGateway)
+			http.Error(w, "transform failed", http.StatusInternalServerError)
 			return
 		}
-	default:
-		http.Error(w, "internal error", http.StatusInternalServerError)
-		return
 	}
 
-	_, err = io.Copy(w, resp.Body)
-	if err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
-		return
-	}
-
-	for k, v := range resp.Header {
-		for _, vv := range v {
-			w.Header().Add(k, vv)
-		}
-	}
-
-	w.WriteHeader(resp.StatusCode)
+	e.proxy.ServeHTTP(w, r)
 }

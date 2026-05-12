@@ -12,3 +12,7 @@ type Checker interface {
 type Transformer interface {
 	Transform(ctx context.Context, r *http.Request) error
 }
+
+type Proxy interface {
+	ServeHTTP(http.ResponseWriter, *http.Request)
+}
