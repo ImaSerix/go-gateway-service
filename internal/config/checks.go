@@ -5,7 +5,7 @@ type Store struct {
 	Headers map[string]string `yaml:"headers"`
 }
 
-type AuthCheckConfig struct {
+type AuthCheck struct {
 	URL            string            `yaml:"url"`
 	ForwardHeaders map[string]string `yaml:"forward_headers"`
 	Method         string            `yaml:"method"`
@@ -13,27 +13,27 @@ type AuthCheckConfig struct {
 	ExpectedStatus int               `yaml:"expected_status"`
 }
 
-type HeaderRequiredCheckConfig struct {
-	Headers []string `yaml:"headers"`
+type HeaderRequiredCheck struct {
+	Header []string `yaml:"header"`
 }
 
-type QueryRequiredCheckConfig struct {
-	Queries []string `yaml:"queries"`
+type QueryRequiredCheck struct {
+	Query []string `yaml:"query"`
 }
 
-type IPWhiteListCheckConfig struct {
+type IPWhiteListCheck struct {
 	IP []string `yaml:"ip"`
 }
 
-type RateLimitCheckConfig struct {
+type RateLimitCheck struct {
 	Limit  int    `yaml:"limit"`
 	Window string `yaml:"window"`
 }
 
-type InjectCheckConfig struct {
+type InjectCheck struct {
 	Ctx map[string]any `yaml:"ctx"`
 }
 
-type TimeoutCheckConfig struct {
+type TimeoutCheck struct {
 	Duration string `yaml:"duration"`
 }

@@ -11,8 +11,6 @@ import (
 	"github.com/ImaSerix/go-gateway-service/internal/pipeline"
 )
 
-//TODO: поправить тесты, сделать моки всех интерфейсов
-
 func TestPath(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -77,8 +75,9 @@ func TestEndpoint_ServeHTTP(t *testing.T) {
 		reqMethod    string
 		endpointMeth string
 
-		checkErr     error
-		transformErr error
+		checkErr       error
+		transformErr   error
+		middlewarePass bool
 
 		expCode  int
 		expCalls []string
@@ -88,8 +87,12 @@ func TestEndpoint_ServeHTTP(t *testing.T) {
 			reqMethod:    "GET",
 			endpointMeth: "GET",
 
+			middlewarePass: true,
+
 			expCode: http.StatusOK,
 			expCalls: []string{
+				"middleware-1",
+				"middleware-2",
 				"check-1",
 				"check-2",
 				"transform-1",
@@ -106,14 +109,29 @@ func TestEndpoint_ServeHTTP(t *testing.T) {
 			expCalls: nil,
 		},
 		{
+			name:         "middleware failed",
+			reqMethod:    "GET",
+			endpointMeth: "GET",
+
+			middlewarePass: false,
+
+			expCode: http.StatusInternalServerError,
+			expCalls: []string{
+				"middleware-1",
+			},
+		},
+		{
 			name:         "first check failed",
 			reqMethod:    "GET",
 			endpointMeth: "GET",
 
-			checkErr: http.ErrAbortHandler,
+			checkErr:       http.ErrAbortHandler,
+			middlewarePass: true,
 
 			expCode: http.StatusForbidden,
 			expCalls: []string{
+				"middleware-1",
+				"middleware-2",
 				"check-1",
 			},
 		},
@@ -122,10 +140,13 @@ func TestEndpoint_ServeHTTP(t *testing.T) {
 			reqMethod:    "GET",
 			endpointMeth: "GET",
 
-			transformErr: http.ErrBodyNotAllowed,
+			transformErr:   http.ErrBodyNotAllowed,
+			middlewarePass: true,
 
 			expCode: http.StatusInternalServerError,
 			expCalls: []string{
+				"middleware-1",
+				"middleware-2",
 				"check-1",
 				"check-2",
 				"transform-1",
@@ -166,6 +187,18 @@ func TestEndpoint_ServeHTTP(t *testing.T) {
 				calls: &calls,
 			}
 
+			middleware1 := &mockMiddleware{
+				name:  "middleware-1",
+				pass:  test.middlewarePass,
+				calls: &calls,
+			}
+
+			middleware2 := &mockMiddleware{
+				name:  "middleware-2",
+				pass:  true,
+				calls: &calls,
+			}
+
 			path, _ := endpoint.NewPath("/users")
 			method, _ := endpoint.NewMethod(test.endpointMeth)
 
@@ -181,6 +214,10 @@ func TestEndpoint_ServeHTTP(t *testing.T) {
 					transform2,
 				},
 				proxy,
+				[]pipeline.Middleware{
+					middleware1.Middleware(),
+					middleware2.Middleware(),
+				},
 			)
 
 			w := httptest.NewRecorder()

@@ -16,3 +16,11 @@ type Transformer interface {
 type Proxy interface {
 	ServeHTTP(http.ResponseWriter, *http.Request)
 }
+
+type Middleware = func(http.Handler) http.Handler
+
+type Endpoint interface {
+	Method() string
+	Path() string
+	Handler() http.Handler
+}

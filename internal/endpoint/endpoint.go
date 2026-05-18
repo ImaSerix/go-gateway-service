@@ -7,20 +7,22 @@ import (
 )
 
 type Endpoint struct {
-	path         Path
-	method       Method
-	checks       []pipeline.Checker
-	transformers []pipeline.Transformer
-	proxy        pipeline.Proxy
+	path        Path
+	method      Method
+	check       []pipeline.Checker
+	transformer []pipeline.Transformer
+	middleware  []pipeline.Middleware
+	proxy       pipeline.Proxy
 }
 
-func NewEndpoint(path Path, method Method, checks []pipeline.Checker, transformers []pipeline.Transformer, proxy pipeline.Proxy) *Endpoint {
+func NewEndpoint(path Path, method Method, c []pipeline.Checker, t []pipeline.Transformer, p pipeline.Proxy, m []pipeline.Middleware) *Endpoint {
 	return &Endpoint{
-		path:         path,
-		method:       method,
-		checks:       checks,
-		transformers: transformers,
-		proxy:        proxy,
+		path:        path,
+		method:      method,
+		check:       c,
+		transformer: t,
+		middleware:  m,
+		proxy:       p,
 	}
 }
 
@@ -28,8 +30,16 @@ func (e *Endpoint) matchMethod(method string) bool {
 	return e.method == Method(method)
 }
 
-func (e *Endpoint) Pattern() string {
-	return string(e.method) + " " + string(e.path)
+func (e *Endpoint) Method() string {
+	return string(e.method)
+}
+
+func (e *Endpoint) Path() string {
+	return string(e.path)
+}
+
+func (e *Endpoint) Handler() http.Handler {
+	return e
 }
 
 func (e *Endpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -39,9 +49,20 @@ func (e *Endpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var h http.Handler = http.HandlerFunc(e.serve)
+
+	for i := len(e.middleware) - 1; i >= 0; i-- {
+		h = e.middleware[i](h)
+	}
+
+	h.ServeHTTP(w, r)
+}
+
+func (e *Endpoint) serve(w http.ResponseWriter, r *http.Request) {
+
 	ctx := r.Context()
 
-	for _, c := range e.checks {
+	for _, c := range e.check {
 
 		var err error
 
@@ -54,7 +75,7 @@ func (e *Endpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	r = r.WithContext(ctx)
 
-	for _, t := range e.transformers {
+	for _, t := range e.transformer {
 		err := t.Transform(r.Context(), r)
 		if err != nil {
 			http.Error(w, "transform failed", http.StatusInternalServerError)

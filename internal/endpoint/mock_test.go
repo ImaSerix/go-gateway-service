@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"net/http"
+
+	"github.com/ImaSerix/go-gateway-service/internal/pipeline"
 )
 
 type mockCheck struct {
@@ -64,4 +66,24 @@ func (m *mockProxy) ServeHTTP(
 ) {
 	*m.calls = append(*m.calls, "proxy")
 	w.WriteHeader(http.StatusOK)
+}
+
+type mockMiddleware struct {
+	name  string
+	calls *[]string
+	pass  bool
+}
+
+func (m *mockMiddleware) Middleware() pipeline.Middleware {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			*m.calls = append(*m.calls, m.name)
+
+			if !m.pass {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
 }
