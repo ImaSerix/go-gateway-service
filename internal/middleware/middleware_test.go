@@ -6,8 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ImaSerix/go-gateway-service/internal/builder/middleware"
+	buildermiddleware "github.com/ImaSerix/go-gateway-service/internal/builder/middleware"
 	"github.com/ImaSerix/go-gateway-service/internal/config"
+	"github.com/ImaSerix/go-gateway-service/internal/middleware"
 	"gopkg.in/yaml.v3"
 )
 
@@ -139,7 +140,7 @@ func TestCorsMiddleware(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			m, err := middleware.NewCorsFactory().Create(raw)
+			m, err := buildermiddleware.NewCorsFactory().Create(raw)
 			if err != nil {
 				t.Fatalf("expected no error, but got %v", err)
 			}
@@ -196,7 +197,7 @@ func TestLoggingMiddleware(t *testing.T) {
 
 	var raw yaml.Node
 
-	m, err := middleware.NewLoggingFactory().Create(raw)
+	m, err := buildermiddleware.NewLoggingFactory().Create(raw)
 	if err != nil {
 		t.Fatalf("expected no error, but got %v", err)
 	}
@@ -223,7 +224,7 @@ func TestMetricMiddleware(t *testing.T) {
 
 	var raw yaml.Node
 
-	m, err := middleware.NewMetricFactory().Create(raw)
+	m, err := buildermiddleware.NewMetricFactory().Create(raw)
 	if err != nil {
 		t.Fatalf("expected no error, but got %v", err)
 	}
