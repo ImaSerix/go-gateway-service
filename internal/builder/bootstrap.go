@@ -31,7 +31,7 @@ func RegisterChecks(registry *check.CheckRegistry, client *http.Client) {
 }
 
 func RegisterResolvers(multiResolver *resolver.MultiResolver) {
-	multiResolver.Register("ctx", resolver.NewContextResolver())
+	multiResolver.Register("context", resolver.NewContextResolver())
 	multiResolver.Register("route", resolver.NewRouterResolver())
 	multiResolver.Register("query", resolver.NewQueryResolver())
 	multiResolver.Register("header", resolver.NewHeaderResolver())

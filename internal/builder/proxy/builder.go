@@ -37,10 +37,11 @@ func (rb *ReverseBuilder) Build(cfg config.Upstream) (pipeline.Proxy, error) {
 		return nil, err
 	}
 
-	p := httputil.NewSingleHostReverseProxy(url)
-
-	p.Rewrite = func(pr *httputil.ProxyRequest) {
-		pr.Out.Method = string(m)
+	p := &httputil.ReverseProxy{
+		Rewrite: func(pr *httputil.ProxyRequest) {
+			pr.SetURL(url)
+			pr.Out.Method = string(m)
+		},
 	}
 
 	return p, nil

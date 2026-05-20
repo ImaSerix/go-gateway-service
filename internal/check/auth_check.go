@@ -99,7 +99,6 @@ func (c *Auth) Execute(ctx context.Context, r *http.Request) (context.Context, e
 			return ctx, fmt.Errorf("auth check: decode body: %w", err)
 		}
 
-		//TODO: разобраться с этими ключами контекста
 		if m, ok := body.(map[string]any); ok {
 			for ctxKey, bodyKey := range c.storeBody {
 				if val, ok := m[bodyKey]; ok {

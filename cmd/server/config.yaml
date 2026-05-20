@@ -1,18 +1,20 @@
-routes:
-  - path: /users
-    method: GET
-    upstream: 
-        url: https://jsonplaceholder.typicode.com/users
-        method: GET
-    checks:
-      - type: auth
-        config: 
-          url: http://localhost:8080/ping
-          method: GET
-          expected_status: 200
+server:
+  middleware:
+    - type: recovery
+    - type: logging
+    - type: request_id
 
-  - path: /posts
+routes:
+  - path: /
     method: GET
-    upstream: 
-        url: https://jsonplaceholder.typicode.com/posts
-        method: GET
+    checks:
+      - type: inject
+        config:
+          ctx:
+            service_name: gateway
+    transform:
+      header:
+        X-Service-Name: context.service_name
+    upstream:
+      url: https://jsonplaceholder.typicode.com/users
+      method: GET
