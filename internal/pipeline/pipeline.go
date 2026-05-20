@@ -10,7 +10,7 @@ type Checker interface {
 }
 
 type Transformer interface {
-	Transform(ctx context.Context, r *http.Request) error
+	Transform(r *http.Request) error
 }
 
 type Proxy interface {

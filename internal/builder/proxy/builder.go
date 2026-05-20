@@ -2,6 +2,8 @@ package proxy
 
 import (
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 
 	"github.com/ImaSerix/go-gateway-service/internal/config"
 	"github.com/ImaSerix/go-gateway-service/internal/pipeline"
@@ -30,7 +32,16 @@ func (rb *ReverseBuilder) Build(cfg config.Upstream) (pipeline.Proxy, error) {
 		return nil, err
 	}
 
-	p := proxy.NewReverseProxy(t, m, rb.client)
+	url, err := url.Parse(string(t))
+	if err != nil {
+		return nil, err
+	}
+
+	p := httputil.NewSingleHostReverseProxy(url)
+
+	p.Rewrite = func(pr *httputil.ProxyRequest) {
+		pr.Out.Method = string(m)
+	}
 
 	return p, nil
 }

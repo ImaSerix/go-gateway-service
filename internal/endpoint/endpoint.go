@@ -76,7 +76,7 @@ func (e *Endpoint) serve(w http.ResponseWriter, r *http.Request) {
 	r = r.WithContext(ctx)
 
 	for _, t := range e.transformer {
-		err := t.Transform(r.Context(), r)
+		err := t.Transform(r)
 		if err != nil {
 			http.Error(w, "transform failed", http.StatusInternalServerError)
 			return

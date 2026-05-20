@@ -1,31 +1,34 @@
 package transformer
 
 import (
-	"context"
 	"fmt"
 	"net/http"
+
+	"github.com/ImaSerix/go-gateway-service/internal/resolver"
 )
 
 type HeaderTransformer struct {
 	headerBindings map[string]string
+	resolver       resolver.Resolver
 }
 
-func NewHeaderTransformer(headerBindings map[string]string) *HeaderTransformer {
+func NewHeaderTransformer(headerBindings map[string]string, resolver resolver.Resolver) *HeaderTransformer {
 	return &HeaderTransformer{
 		headerBindings: headerBindings,
+		resolver:       resolver,
 	}
 }
 
-func (t *HeaderTransformer) Transform(ctx context.Context, r *http.Request) error {
+func (t *HeaderTransformer) Transform(r *http.Request) error {
 
 	if r == nil {
 		return ErrNilRequest
 	}
 
-	for header, ctxKey := range t.headerBindings {
-		v := ctx.Value(ctxKey)
-		if v == nil {
-			return fmt.Errorf("%w: %s", ErrNoKeyInContext, ctxKey)
+	for header, key := range t.headerBindings {
+		v, ok := t.resolver.Resolve(r, key)
+		if !ok {
+			return fmt.Errorf("%w: %s", ErrInvalidKey, key)
 		}
 
 		r.Header.Set(header, fmt.Sprint(v))

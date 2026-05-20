@@ -1,5 +1,7 @@
 package proxy
 
+// REPLACED BY httputils.SingleHostReverseProxy
+
 import (
 	"bytes"
 	"context"
@@ -7,8 +9,6 @@ import (
 	"log/slog"
 	"net/http"
 )
-
-//TODO: сделать структуру прокси, которая будет уметь брать Upstream и выполнять какой-то запрос, возвращая его как ответ
 
 type ReverseProxy struct {
 	target URL

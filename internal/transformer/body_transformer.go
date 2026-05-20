@@ -2,21 +2,24 @@ package transformer
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
+
+	"github.com/ImaSerix/go-gateway-service/internal/resolver"
 )
 
 type BodyTransformer struct {
 	template map[string]any
+	resolver resolver.Resolver
 }
 
-func NewBodyTransformer(bodyBindings map[string]any) *BodyTransformer {
+func NewBodyTransformer(bodyBindings map[string]any, resolver resolver.Resolver) *BodyTransformer {
 	return &BodyTransformer{
 		template: bodyBindings,
+		resolver: resolver,
 	}
 }
 
@@ -55,14 +58,14 @@ func isPlaceholder(s string) bool {
 }
 
 // На данный момент работает только с map, в любом их виде, рекурсивно, не поддерживает списки
-func (t *BodyTransformer) Bind(ctx context.Context, template map[string]any) (map[string]any, error) {
+func (t *BodyTransformer) Bind(r *http.Request, template map[string]any) (map[string]any, error) {
 
 	layer := DeepCopy(template)
 
 	for key, v := range layer {
 
 		if m, ok := v.(map[string]any); ok {
-			bindedLayer, err := t.Bind(ctx, m)
+			bindedLayer, err := t.Bind(r, m)
 			if err != nil {
 				return nil, err
 			}
@@ -74,10 +77,9 @@ func (t *BodyTransformer) Bind(ctx context.Context, template map[string]any) (ma
 			if !isPlaceholder(s) {
 				continue
 			}
-			s := s[1 : len(s)-1]
-			v := ctx.Value(s)
-			if v == nil {
-				return nil, fmt.Errorf("%w:  %s", ErrNoKeyInContext, s)
+			v, ok := t.resolver.Resolve(r, s)
+			if !ok {
+				return nil, fmt.Errorf("%w: %s", ErrInvalidKey, layer[key])
 			}
 			layer[key] = v
 			continue
@@ -87,7 +89,7 @@ func (t *BodyTransformer) Bind(ctx context.Context, template map[string]any) (ma
 	return layer, nil
 }
 
-func (t *BodyTransformer) Transform(ctx context.Context, r *http.Request) error {
+func (t *BodyTransformer) Transform(r *http.Request) error {
 
 	if r == nil {
 		return ErrNilRequest
@@ -97,7 +99,7 @@ func (t *BodyTransformer) Transform(ctx context.Context, r *http.Request) error 
 		return ErrUnsupportedContentType
 	}
 
-	boundTemplate, err := t.Bind(ctx, t.template)
+	boundTemplate, err := t.Bind(r, t.template)
 	if err != nil {
 		return err
 	}

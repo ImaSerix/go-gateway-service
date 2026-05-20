@@ -26,7 +26,7 @@ func TestBodyTransformer_Transform(t *testing.T) {
 			name: "success",
 			template: map[string]any{
 				"user": map[string]any{
-					"id": "{user_id}",
+					"id": "{ctx:user_id}",
 				},
 			},
 			ctxValues: map[string]any{
@@ -49,7 +49,7 @@ func TestBodyTransformer_Transform(t *testing.T) {
 			name: "nil body",
 			template: map[string]any{
 				"user": map[string]any{
-					"id": "{user_id}",
+					"id": "{ctx:user_id}",
 				},
 			},
 			ctxValues: map[string]any{
@@ -67,7 +67,7 @@ func TestBodyTransformer_Transform(t *testing.T) {
 			name: "override body value",
 			template: map[string]any{
 				"user": map[string]any{
-					"id": "{user_id}",
+					"id": "{ctx:user_id}",
 				},
 			},
 			ctxValues: map[string]any{
@@ -89,7 +89,7 @@ func TestBodyTransformer_Transform(t *testing.T) {
 			name: "body primitive type",
 			template: map[string]any{
 				"user": map[string]any{
-					"id": "{user_id}",
+					"id": "{ctx:user_id}",
 				},
 			},
 			ctxValues: map[string]any{
@@ -107,7 +107,7 @@ func TestBodyTransformer_Transform(t *testing.T) {
 			name: "body list",
 			template: map[string]any{
 				"user": map[string]any{
-					"id": "{user_id}",
+					"id": "{ctx:user_id}",
 				},
 			},
 			ctxValues: map[string]any{
@@ -147,8 +147,11 @@ func TestBodyTransformer_Transform(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 
 			templateCopy := transformer.DeepCopy(test.template)
+			resolver := &resolverMock{
+				values: test.ctxValues,
+			}
 
-			tr := transformer.NewBodyTransformer(test.template)
+			tr := transformer.NewBodyTransformer(test.template, resolver)
 
 			b, err := json.Marshal(test.body)
 			if err != nil {
@@ -164,7 +167,7 @@ func TestBodyTransformer_Transform(t *testing.T) {
 				ctx = context.WithValue(ctx, ctxKey, v)
 			}
 
-			err = tr.Transform(ctx, r)
+			err = tr.Transform(r)
 			if !errors.Is(err, test.expErr) {
 				t.Fatalf("expected error %v, but got %v", test.expErr, err)
 			}
@@ -183,38 +186,43 @@ func TestBodyTransformer_Transform(t *testing.T) {
 }
 
 func TestBodyTransformer_Transform_NilRequest(t *testing.T) {
-	tr := transformer.NewBodyTransformer(nil)
+	tr := transformer.NewBodyTransformer(nil, nil)
 
-	err := tr.Transform(context.Background(), nil)
+	err := tr.Transform(nil)
 	if !errors.Is(err, transformer.ErrNilRequest) {
 		t.Fatalf("expected erorr %v, but got %v", transformer.ErrNilRequest, err)
 	}
 }
 
 func TestBodyTransformer_Transform_UnsupportedContentType(t *testing.T) {
-	tr := transformer.NewBodyTransformer(nil)
+	tr := transformer.NewBodyTransformer(nil, nil)
 
 	r := httptest.NewRequest("GET", "http://nice.url", nil)
 
-	err := tr.Transform(context.Background(), r)
+	err := tr.Transform(r)
 	if !errors.Is(err, transformer.ErrUnsupportedContentType) {
 		t.Fatalf("expected erorr %v, but got %v", transformer.ErrUnsupportedContentType, err)
 	}
 }
 
 func TestBodyTransformer_Transform_NoKeyInContext(t *testing.T) {
+
+	resolver := &resolverMock{
+		values: map[string]any{},
+	}
+
 	tr := transformer.NewBodyTransformer(map[string]any{
 		"user": map[string]any{
 			"id": "{user_id}",
 		},
-	})
+	}, resolver)
 
 	r := httptest.NewRequest("GET", "http://nice.url", nil)
 	r.Header.Set("Content-Type", "application/json")
 
-	err := tr.Transform(context.Background(), r)
-	if !errors.Is(err, transformer.ErrNoKeyInContext) {
-		t.Fatalf("expected erorr %v, but got %v", transformer.ErrNoKeyInContext, err)
+	err := tr.Transform(r)
+	if !errors.Is(err, transformer.ErrInvalidKey) {
+		t.Fatalf("expected erorr %v, but got %v", transformer.ErrInvalidKey, err)
 	}
 }
 
@@ -231,7 +239,7 @@ func TestBodyTransformer_Bind(t *testing.T) {
 			name: "success",
 			template: map[string]any{
 				"user": map[string]any{
-					"id": "{user_id}",
+					"id": "{ctx:user_id}",
 				},
 			},
 			expBody: map[string]any{
@@ -248,11 +256,11 @@ func TestBodyTransformer_Bind(t *testing.T) {
 			name: "more than one",
 			template: map[string]any{
 				"user": map[string]any{
-					"id": "{user_id}",
+					"id": "{ctx:user_id}",
 				},
 				"chat": map[string]any{
-					"id":      "{chat_id}",
-					"content": "{chat_content}",
+					"id":      "{ctx:chat_id}",
+					"content": "{ctx:chat_content}",
 				},
 			},
 			expBody: map[string]any{
@@ -275,11 +283,11 @@ func TestBodyTransformer_Bind(t *testing.T) {
 			name: "no key in context",
 			template: map[string]any{
 				"user": map[string]any{
-					"id": "{user_id}",
+					"id": "{ctx:user_id}",
 				},
 				"chat": map[string]any{
-					"id":      "{chat_id}",
-					"content": "{chat_content}",
+					"id":      "{ctx:chat_id}",
+					"content": "{ctx:chat_content}",
 				},
 			},
 			expBody: map[string]any{
@@ -295,7 +303,7 @@ func TestBodyTransformer_Bind(t *testing.T) {
 				"chat_id":      1002,
 				"chat_content": "nice content",
 			},
-			expErr: transformer.ErrNoKeyInContext,
+			expErr: transformer.ErrInvalidKey,
 		},
 		{
 			name: "placeholder not a string",
@@ -304,8 +312,8 @@ func TestBodyTransformer_Bind(t *testing.T) {
 					"id": 1001,
 				},
 				"chat": map[string]any{
-					"id":      "{chat_id}",
-					"content": "{chat_content}",
+					"id":      "{ctx:chat_id}",
+					"content": "{ctx:chat_content}",
 				},
 			},
 			expBody: map[string]any{
@@ -330,8 +338,8 @@ func TestBodyTransformer_Bind(t *testing.T) {
 					"id": "{id",
 				},
 				"chat": map[string]any{
-					"id":      "{chat_id}",
-					"content": "{chat_content}",
+					"id":      "{ctx:chat_id}",
+					"content": "{ctx:chat_content}",
 				},
 			},
 			expBody: map[string]any{
@@ -384,13 +392,21 @@ func TestBodyTransformer_Bind(t *testing.T) {
 
 			ctx := context.Background()
 
+			r := httptest.NewRequest("GET", "http://nice.url", nil)
+
 			for key, v := range test.ctxValues {
 				ctx = context.WithValue(ctx, key, v)
 			}
 
-			bt := transformer.NewBodyTransformer(test.template)
+			r = r.WithContext(ctx)
 
-			binded, err := bt.Bind(ctx, test.template)
+			resolver := &resolverMock{
+				values: test.ctxValues,
+			}
+
+			bt := transformer.NewBodyTransformer(test.template, resolver)
+
+			binded, err := bt.Bind(r, test.template)
 			if !errors.Is(err, test.expErr) {
 				t.Fatalf("expected error %v, but got %v", test.expErr, err)
 			}

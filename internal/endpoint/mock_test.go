@@ -40,15 +40,12 @@ type mockTransformer struct {
 	expectCtx bool
 }
 
-func (m *mockTransformer) Transform(
-	ctx context.Context,
-	r *http.Request,
-) error {
+func (m *mockTransformer) Transform(r *http.Request) error {
 
 	*m.calls = append(*m.calls, m.name)
 
 	if m.expectCtx {
-		if v := ctx.Value("user_id"); v != 1001 {
+		if v := r.Context().Value("user_id"); v != 1001 {
 			return errors.New("context value not propagated")
 		}
 	}
