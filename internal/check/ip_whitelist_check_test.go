@@ -19,7 +19,7 @@ func TestIPWhitelistCheck(t *testing.T) {
 		{
 			name: "success",
 			cfg: config.IPWhiteListCheck{
-				IP: []string{
+				IPs: []string{
 					"127.0.0.1",
 					"192.168.0.1",
 				},
@@ -29,7 +29,7 @@ func TestIPWhitelistCheck(t *testing.T) {
 		{
 			name: "ip whitelist empty",
 			cfg: config.IPWhiteListCheck{
-				IP: []string{},
+				IPs: []string{},
 			},
 			expErr: check.ErrEmptyIP,
 		},
@@ -53,7 +53,7 @@ func TestIPWhitelistCheck(t *testing.T) {
 
 func TestIPWhitelistCheck_Execute_Success(t *testing.T) {
 	cfg := config.IPWhiteListCheck{
-		IP: []string{
+		IPs: []string{
 			"127.0.0.1",
 			"192.168.0.1",
 		},
@@ -75,7 +75,7 @@ func TestIPWhitelistCheck_Execute_Success(t *testing.T) {
 
 func TestIPWhitelistCheck_Execute_WithPort(t *testing.T) {
 	cfg := config.IPWhiteListCheck{
-		IP: []string{
+		IPs: []string{
 			"127.0.0.1",
 			"192.168.0.1",
 		},
@@ -97,7 +97,7 @@ func TestIPWhitelistCheck_Execute_WithPort(t *testing.T) {
 
 func TestIPWhitelistCheck_Execute_RequestNil(t *testing.T) {
 	cfg := config.IPWhiteListCheck{
-		IP: []string{
+		IPs: []string{
 			"127.0.0.1",
 			"192.168.0.1",
 		},
@@ -115,7 +115,7 @@ func TestIPWhitelistCheck_Execute_RequestNil(t *testing.T) {
 
 func TestIPWhitelistCheck_Execute_IPNotInList(t *testing.T) {
 	cfg := config.IPWhiteListCheck{
-		IP: []string{
+		IPs: []string{
 			"127.0.0.1",
 			"192.168.0.1",
 		},

@@ -13,6 +13,7 @@ import (
 	"github.com/ImaSerix/go-gateway-service/internal/builder/handler"
 	"github.com/ImaSerix/go-gateway-service/internal/builder/middleware"
 	"github.com/ImaSerix/go-gateway-service/internal/builder/proxy"
+	"github.com/ImaSerix/go-gateway-service/internal/builder/render"
 	"github.com/ImaSerix/go-gateway-service/internal/builder/resolver"
 	"github.com/ImaSerix/go-gateway-service/internal/builder/transformer"
 	"github.com/ImaSerix/go-gateway-service/internal/config"
@@ -35,16 +36,20 @@ func main() {
 
 	checkRegisty := check.NewCheckRegistry()
 	middlewareRegistry := middleware.NewMiddlewareRegistry()
-	resolver := resolver.NewBuilder().Build()
+	transformerRegistry := transformer.NewTransformerRegistry()
 
-	builder.RegisterChecks(checkRegisty, client)
+	resolver := resolver.NewMultiResolverBuilder().Build()
+
+	render := render.NewBuilder(resolver).Build()
+
+	builder.RegisterChecks(checkRegisty, render, client)
+	builder.RegisterTransformers(transformerRegistry, render)
 	builder.RegisterMiddlewares(middlewareRegistry)
-	builder.RegisterResolvers(resolver)
 
 	checkBuilder := check.NewBuilder(checkRegisty)
 	middlewareBuilder := middleware.NewBuilder(middlewareRegistry)
-	transformerBuilder := transformer.NewBuilder(resolver)
-	proxyBuilder := proxy.NewBuilder(client)
+	transformerBuilder := transformer.NewBuilder(transformerRegistry)
+	proxyBuilder := proxy.NewBuilder(client, render)
 	endpointBuilder := endpoint.NewBuilder(checkBuilder, transformerBuilder, middlewareBuilder, proxyBuilder)
 
 	handlerBuilder := handler.NewBuilder(middlewareBuilder, endpointBuilder)

@@ -8,18 +8,18 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/ImaSerix/go-gateway-service/internal/resolver"
+	"github.com/ImaSerix/go-gateway-service/internal/renderer"
 )
 
-type BodyTransformer struct {
+type BodyFields struct {
 	template map[string]any
-	resolver resolver.Resolver
+	render   renderer.Renderer
 }
 
-func NewBodyTransformer(bodyBindings map[string]any, resolver resolver.Resolver) *BodyTransformer {
-	return &BodyTransformer{
+func NewBodyTransformer(bodyBindings map[string]any, render renderer.Renderer) *BodyFields {
+	return &BodyFields{
 		template: bodyBindings,
-		resolver: resolver,
+		render:   render,
 	}
 }
 
@@ -53,12 +53,8 @@ func mergeWithOverride(boundTemplate map[string]any, body any) any {
 	return b
 }
 
-func isPlaceholder(s string) bool {
-	return strings.HasPrefix(s, "{") && strings.HasSuffix(s, "}")
-}
-
 // На данный момент работает только с map, в любом их виде, рекурсивно, не поддерживает списки
-func (t *BodyTransformer) Bind(r *http.Request, template map[string]any) (map[string]any, error) {
+func (t *BodyFields) Bind(r *http.Request, template map[string]any) (map[string]any, error) {
 
 	layer := DeepCopy(template)
 
@@ -74,14 +70,11 @@ func (t *BodyTransformer) Bind(r *http.Request, template map[string]any) (map[st
 		}
 
 		if s, ok := v.(string); ok {
-			if !isPlaceholder(s) {
-				continue
+			renderedString, err := t.render.Render(s, r)
+			if err != nil {
+				return nil, fmt.Errorf("%w: %s", err, layer[key])
 			}
-			v, ok := t.resolver.Resolve(r, s)
-			if !ok {
-				return nil, fmt.Errorf("%w: %s", ErrInvalidKey, layer[key])
-			}
-			layer[key] = v
+			layer[key] = renderedString
 			continue
 		}
 	}
@@ -89,7 +82,7 @@ func (t *BodyTransformer) Bind(r *http.Request, template map[string]any) (map[st
 	return layer, nil
 }
 
-func (t *BodyTransformer) Transform(r *http.Request) error {
+func (t *BodyFields) Transform(r *http.Request) error {
 
 	if r == nil {
 		return ErrNilRequest

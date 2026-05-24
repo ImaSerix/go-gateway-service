@@ -20,7 +20,7 @@ func TestQueryRequiredCheck(t *testing.T) {
 		{
 			name: "success",
 			cfg: config.QueryRequiredCheck{
-				Query: []string{
+				QueryParams: []string{
 					"name",
 					"category",
 				},
@@ -30,7 +30,7 @@ func TestQueryRequiredCheck(t *testing.T) {
 		{
 			name: "required headers list empty",
 			cfg: config.QueryRequiredCheck{
-				Query: []string{},
+				QueryParams: []string{},
 			},
 			expErr: check.ErrEmptyQuery,
 		},
@@ -54,7 +54,7 @@ func TestQueryRequiredCheck(t *testing.T) {
 
 func TestQueryRequiredCheck_Execute_Success(t *testing.T) {
 	cfg := config.QueryRequiredCheck{
-		Query: []string{
+		QueryParams: []string{
 			"name",
 			"category",
 		},
@@ -75,7 +75,7 @@ func TestQueryRequiredCheck_Execute_Success(t *testing.T) {
 
 func TestQueryRequiredCheck_Execute_RequestNil(t *testing.T) {
 	cfg := config.QueryRequiredCheck{
-		Query: []string{
+		QueryParams: []string{
 			"name",
 			"category",
 		},
@@ -93,7 +93,7 @@ func TestQueryRequiredCheck_Execute_RequestNil(t *testing.T) {
 
 func TestQueryRequiredCheck_Execute_NoHeader(t *testing.T) {
 	cfg := config.QueryRequiredCheck{
-		Query: []string{
+		QueryParams: []string{
 			"name",
 			"category",
 		},

@@ -9,6 +9,6 @@ type MiddlewareBuilder interface {
 	BuildMany([]config.Middleware) ([]pipeline.Middleware, error)
 }
 
-type EndpointBuilder interface {
+type RouteBuilder interface {
 	BuildMany([]config.Route) ([]pipeline.Endpoint, error)
 }

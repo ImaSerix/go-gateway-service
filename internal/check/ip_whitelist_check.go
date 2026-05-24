@@ -15,12 +15,12 @@ type IPWhiteList struct {
 
 func NewIPWhiteList(cfg config.IPWhiteListCheck) (*IPWhiteList, error) {
 
-	if len(cfg.IP) == 0 {
+	if len(cfg.IPs) == 0 {
 		return nil, ErrEmptyIP
 	}
 
 	return &IPWhiteList{
-		ip: cfg.IP,
+		ip: cfg.IPs,
 	}, nil
 }
 

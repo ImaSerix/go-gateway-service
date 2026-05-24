@@ -86,6 +86,15 @@ func TestCheckFactory(t *testing.T) {
 			cfg:     config.TimeoutMiddleware{},
 			wantErr: true,
 		},
+		{
+			name:    "inject",
+			factory: middleawreBuilder.NewInjectFactory(),
+			cfg: config.InjectMiddleware{
+				Context: map[string]any{
+					"name": "niceName",
+				},
+			},
+		},
 	}
 
 	for _, test := range tests {

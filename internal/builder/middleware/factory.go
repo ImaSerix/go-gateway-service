@@ -130,3 +130,20 @@ func (f *TimeoutFactory) Create(raw yaml.Node) (pipeline.Middleware, error) {
 
 	return middleware.Timeout(d), nil
 }
+
+type InjectFactory struct{}
+
+func NewInjectFactory() *InjectFactory {
+	return &InjectFactory{}
+}
+
+func (f *InjectFactory) Create(raw yaml.Node) (pipeline.Middleware, error) {
+
+	var cfg config.InjectMiddleware
+
+	if err := raw.Decode(&cfg); err != nil {
+		return nil, fmt.Errorf("new cors middleware factory: %w", err)
+	}
+
+	return middleware.Inject(cfg.Context), nil
+}

@@ -12,12 +12,7 @@ func NewQueryResolver() *QueryResolver {
 
 func (cr *QueryResolver) Resolve(r *http.Request, key string) (any, bool) {
 
-	_, n, err := getSourceAndKey(key)
-	if err != nil {
-		return nil, false
-	}
-
-	if v := r.URL.Query().Get(n); v != "" {
+	if v := r.URL.Query().Get(key); v != "" {
 		return v, true
 	}
 

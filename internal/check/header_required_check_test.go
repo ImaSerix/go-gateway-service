@@ -20,7 +20,7 @@ func TestHeaderRequiredCheck(t *testing.T) {
 		{
 			name: "success",
 			cfg: config.HeaderRequiredCheck{
-				Header: []string{
+				Headers: []string{
 					"X-Username",
 					"X-Password",
 				},
@@ -30,7 +30,7 @@ func TestHeaderRequiredCheck(t *testing.T) {
 		{
 			name: "required Header list empty",
 			cfg: config.HeaderRequiredCheck{
-				Header: []string{},
+				Headers: []string{},
 			},
 			expErr: check.ErrEmptyHeaders,
 		},
@@ -54,7 +54,7 @@ func TestHeaderRequiredCheck(t *testing.T) {
 
 func TestHeaderRequiredCheck_Execute_Success(t *testing.T) {
 	cfg := config.HeaderRequiredCheck{
-		Header: []string{
+		Headers: []string{
 			"X-Username",
 			"X-Password",
 		},
@@ -77,7 +77,7 @@ func TestHeaderRequiredCheck_Execute_Success(t *testing.T) {
 
 func TestHeaderRequiredCheck_Execute_RequestNil(t *testing.T) {
 	cfg := config.HeaderRequiredCheck{
-		Header: []string{
+		Headers: []string{
 			"X-Username",
 			"X-Password",
 		},
@@ -95,7 +95,7 @@ func TestHeaderRequiredCheck_Execute_RequestNil(t *testing.T) {
 
 func TestHeaderRequiredCheck_Execute_NoHeader(t *testing.T) {
 	cfg := config.HeaderRequiredCheck{
-		Header: []string{
+		Headers: []string{
 			"X-Username",
 			"X-Password",
 		},

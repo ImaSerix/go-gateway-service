@@ -8,4 +8,5 @@ var (
 	ErrUnsupportedContentType = errors.New("unsupported content type")
 	ErrInvalidPlaceholder     = errors.New("invalid placeholder")
 	ErrInvalidListTempalate   = errors.New("invalid list template")
+	ErrInvalidTemplate        = errors.New("invalid template")
 )

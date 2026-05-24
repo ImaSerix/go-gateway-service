@@ -30,17 +30,17 @@ func NewBuilder(ch CheckBuilder, t TransformBuilder, m MiddlewareBuilder, p Prox
 
 func (b *EndpointBuilder) Build(cfg config.Route) (pipeline.Endpoint, error) {
 
+	middleware, err := b.middleware.BuildMany(cfg.Middlewares)
+	if err != nil {
+		return nil, err
+	}
+
 	check, err := b.check.BuildMany(cfg.Checks)
 	if err != nil {
 		return nil, err
 	}
 
-	transformer, err := b.transform.BuildMany(cfg.Transform)
-	if err != nil {
-		return nil, err
-	}
-
-	middleware, err := b.middleware.BuildMany(cfg.Middleware)
+	transformer, err := b.transform.BuildMany(cfg.Transforms)
 	if err != nil {
 		return nil, err
 	}

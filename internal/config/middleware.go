@@ -55,3 +55,16 @@ type TimeoutMiddleware struct {
 // 		duration: 2s
 
 // ---
+
+type InjectMiddleware struct {
+	Context map[string]any `yaml:"context"`
+}
+
+// Структура выглядит примерно так:
+
+// - type: inject
+//   config:
+// 		context:
+//			name: niceName
+
+// ---

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/ImaSerix/go-gateway-service/internal/config"
@@ -9,26 +10,26 @@ import (
 
 type Builder struct {
 	middlewareBuilder MiddlewareBuilder
-	endpointBuilder   EndpointBuilder
+	endpointBuilder   RouteBuilder
 }
 
-func NewBuilder(m MiddlewareBuilder, e EndpointBuilder) *Builder {
+func NewBuilder(m MiddlewareBuilder, r RouteBuilder) *Builder {
 	return &Builder{
 		middlewareBuilder: m,
-		endpointBuilder:   e,
+		endpointBuilder:   r,
 	}
 }
 
 func (b *Builder) Build(cfg config.Root) (http.Handler, error) {
 
-	middlewares, err := b.middlewareBuilder.BuildMany(cfg.Server.Middleware)
+	middlewares, err := b.middlewareBuilder.BuildMany(cfg.Server.Middlewares)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("global middleware build failed: %w", err)
 	}
 
 	endpoints, err := b.endpointBuilder.BuildMany(cfg.Routes)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("route build failed: %w", err)
 	}
 
 	r := chi.NewRouter()

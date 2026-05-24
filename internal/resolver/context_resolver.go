@@ -10,12 +10,7 @@ func NewContextResolver() *ContextResolver {
 
 func (cr *ContextResolver) Resolve(r *http.Request, key string) (any, bool) {
 
-	_, n, err := getSourceAndKey(key)
-	if err != nil {
-		return nil, false
-	}
-
-	if v := r.Context().Value(n); v != nil {
+	if v := r.Context().Value(key); v != nil {
 		return v, true
 	}
 

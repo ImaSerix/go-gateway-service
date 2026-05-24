@@ -2,35 +2,19 @@ package transformer_test
 
 import (
 	"net/http"
-	"strings"
 )
 
-type resolverMock struct {
-	values        map[string]any
+type renderMock struct {
+	values        map[string]string
+	err           error
 	forHeaderTest bool
 }
 
-func (rm *resolverMock) Resolve(r *http.Request, key string) (any, bool) {
+func (rm *renderMock) Render(s string, r *http.Request) (string, error) {
 
-	k := key
-
-	if !rm.forHeaderTest {
-
-		trim := strings.TrimPrefix(key, "{")
-		trim = strings.TrimSuffix(trim, "}")
-
-		split := strings.Split(trim, ":")
-
-		if len(split) != 2 {
-			return nil, false
-		}
-
-		k = split[1]
-	}
-
-	v, ok := rm.values[k]
+	v, ok := rm.values[s]
 	if !ok {
-		return nil, false
+		return s, rm.err
 	}
-	return v, true
+	return v, rm.err
 }

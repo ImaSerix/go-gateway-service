@@ -3,6 +3,7 @@ package types
 type TransformerName string
 
 var (
-	Header TransformerName = "header"
-	Body   TransformerName = "body"
+	Headers     TransformerName = "header"
+	BodyFields  TransformerName = "body_fields"
+	QueryParams TransformerName = "query_params"
 )

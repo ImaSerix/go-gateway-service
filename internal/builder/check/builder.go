@@ -6,16 +6,7 @@ import (
 	"github.com/ImaSerix/go-gateway-service/internal/config"
 	"github.com/ImaSerix/go-gateway-service/internal/pipeline"
 	"github.com/ImaSerix/go-gateway-service/internal/types"
-	"gopkg.in/yaml.v3"
 )
-
-type Factory interface {
-	Create(raw yaml.Node) (pipeline.Checker, error)
-}
-
-type Registry interface {
-	Get(key types.CheckName) (Factory, bool)
-}
 
 type Builder struct {
 	registry Registry
@@ -29,6 +20,7 @@ func NewBuilder(registry Registry) *Builder {
 
 func (b *Builder) Build(cfg config.Check) (pipeline.Checker, error) {
 
+	// Используется регистер для более удобного и юнифицированного и понятного создания check
 	f, ok := b.registry.Get(types.CheckName(cfg.Type))
 	if !ok {
 		return nil, fmt.Errorf("%w: %s", ErrUnregisteredCheckName, cfg.Type)

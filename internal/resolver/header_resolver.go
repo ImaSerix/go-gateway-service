@@ -10,12 +10,7 @@ func NewHeaderResolver() *HeaderResolver {
 
 func (cr *HeaderResolver) Resolve(r *http.Request, key string) (any, bool) {
 
-	_, n, err := getSourceAndKey(key)
-	if err != nil {
-		return nil, false
-	}
-
-	if v := r.Header.Get(n); v != "" {
+	if v := r.Header.Get(key); v != "" {
 		return v, true
 	}
 

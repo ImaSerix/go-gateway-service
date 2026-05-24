@@ -7,6 +7,16 @@ type MultiResolver struct {
 }
 
 func NewMultiResolver() *MultiResolver {
+
+	r := &MultiResolver{
+		resolvers: map[string]Resolver{},
+	}
+
+	r.Register("context", NewContextResolver())
+	r.Register("route", NewRouterResolver())
+	r.Register("query", NewQueryResolver())
+	r.Register("header", NewHeaderResolver())
+
 	return &MultiResolver{
 		resolvers: map[string]Resolver{},
 	}
@@ -16,14 +26,9 @@ func (dr *MultiResolver) Register(source string, resolver Resolver) {
 	dr.resolvers[source] = resolver
 }
 
-func (dr *MultiResolver) Resolve(r *http.Request, key string) (any, bool) {
+func (dr *MultiResolver) Resolve(r *http.Request, source string, key string) (any, bool) {
 
-	s, _, err := getSourceAndKey(key)
-	if err != nil {
-		return nil, false
-	}
-
-	resolver, ok := dr.resolvers[s]
+	resolver, ok := dr.resolvers[source]
 	if !ok {
 		return nil, false
 	}

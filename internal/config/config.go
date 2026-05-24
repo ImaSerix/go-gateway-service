@@ -13,7 +13,7 @@ type Root struct {
 }
 
 type Server struct {
-	Middleware []Middleware `yaml:"middleware"`
+	Middlewares []Middleware `yaml:"middlewares"`
 }
 
 type Middleware struct {
@@ -22,17 +22,12 @@ type Middleware struct {
 }
 
 type Route struct {
-	Path       string       `yaml:"path"`
-	Method     string       `yaml:"method"`
-	Middleware []Middleware `yaml:"middleware"`
-	Checks     []Check      `yaml:"checks"`
-	Upstream   Upstream     `yaml:"upstream"`
-	Transform  Transform    `yaml:"transform"`
-}
-
-type Transform struct {
-	Header map[string]string `yaml:"header"`
-	Body   map[string]any    `yaml:"body"`
+	Path        string       `yaml:"path"`
+	Method      string       `yaml:"method"`
+	Middlewares []Middleware `yaml:"middlewares"`
+	Checks      []Check      `yaml:"checks"`
+	Transforms  Transform    `yaml:"transforms"`
+	Upstream    Upstream     `yaml:"upstream"`
 }
 
 type Check struct {
@@ -41,7 +36,9 @@ type Check struct {
 }
 
 type Upstream struct {
-	URL    string `yaml:"url"`
+	Host   string `yaml:"host"`
+	Scheme string `yaml:"scheme"`
+	Path   string `yaml:"path"`
 	Method string `yaml:"method"`
 }
 

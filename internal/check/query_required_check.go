@@ -14,12 +14,12 @@ type QueryRequired struct {
 
 func NewQueryRequired(cfg config.QueryRequiredCheck) (*QueryRequired, error) {
 
-	if len(cfg.Query) == 0 {
+	if len(cfg.QueryParams) == 0 {
 		return nil, ErrEmptyQuery
 	}
 
 	return &QueryRequired{
-		requiredQuery: cfg.Query,
+		requiredQuery: cfg.QueryParams,
 	}, nil
 }
 

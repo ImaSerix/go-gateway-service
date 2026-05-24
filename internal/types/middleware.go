@@ -11,4 +11,5 @@ var (
 	RealIP    MiddlewareName = "real_ip"
 	Timeout   MiddlewareName = "timeout"
 	Metric    MiddlewareName = "metric"
+	Inject    MiddlewareName = "inject"
 )

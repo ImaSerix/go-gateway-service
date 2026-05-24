@@ -1,6 +1,7 @@
 package proxy_test
 
 import (
+	"errors"
 	"net/http"
 	"testing"
 
@@ -8,6 +9,12 @@ import (
 	"github.com/ImaSerix/go-gateway-service/internal/config"
 	"github.com/ImaSerix/go-gateway-service/internal/proxy"
 )
+
+type rendererMock struct{}
+
+func (rm *rendererMock) Render(s string, r *http.Request) (string, error) {
+	return "", nil
+}
 
 func TestProxyBuilder(t *testing.T) {
 	tests := []struct {
@@ -18,7 +25,9 @@ func TestProxyBuilder(t *testing.T) {
 		{
 			name: "succes",
 			cfg: config.Upstream{
-				URL:    "http://nice.url",
+				Host:   "nice.host",
+				Scheme: "http",
+				Path:   "",
 				Method: "GET",
 			},
 			expErr: nil,
@@ -26,15 +35,18 @@ func TestProxyBuilder(t *testing.T) {
 		{
 			name: "new url error",
 			cfg: config.Upstream{
-				URL:    "http://",
+				Host:   "",
+				Scheme: "http",
 				Method: "GET",
 			},
-			expErr: proxy.ErrEmptyHost,
+			expErr: proxy.ErrInvalidHost,
 		},
 		{
 			name: "invalid method",
 			cfg: config.Upstream{
-				URL:    "http://nice.url",
+				Host:   "nice.host",
+				Scheme: "http",
+				Path:   "",
 				Method: "INVALID",
 			},
 			expErr: proxy.ErrInvalidMethod,
@@ -44,10 +56,10 @@ func TestProxyBuilder(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 
-			b := proxyBuilder.NewBuilder(http.DefaultClient)
+			b := proxyBuilder.NewBuilder(http.DefaultClient, &rendererMock{})
 
 			p, err := b.Build(test.cfg)
-			if err != test.expErr {
+			if !errors.Is(err, test.expErr) {
 				t.Fatalf("expected error %v, but got %v", test.expErr, err)
 			}
 

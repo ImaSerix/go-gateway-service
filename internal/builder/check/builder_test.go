@@ -1,51 +1,12 @@
 package check_test
 
 import (
-	"context"
 	"errors"
-	"net/http"
 	"testing"
 
 	"github.com/ImaSerix/go-gateway-service/internal/builder/check"
 	"github.com/ImaSerix/go-gateway-service/internal/config"
-	"github.com/ImaSerix/go-gateway-service/internal/pipeline"
-	"github.com/ImaSerix/go-gateway-service/internal/types"
-	"gopkg.in/yaml.v3"
 )
-
-type checkMock struct{}
-
-func (cm checkMock) Execute(ctx context.Context, r *http.Request) (context.Context, error) {
-	return context.Background(), nil
-}
-
-type factoryMock struct {
-	called bool
-	err    error
-}
-
-func (fm *factoryMock) Create(raw yaml.Node) (pipeline.Checker, error) {
-	fm.called = true
-	if fm.err != nil {
-		return nil, fm.err
-	}
-	return &checkMock{}, fm.err
-}
-
-type registryMock struct {
-	f      *factoryMock
-	ok     bool
-	called bool
-}
-
-func (rm *registryMock) Get(key types.CheckName) (check.Factory, bool) {
-	rm.called = true
-	//TODO: Если честно херня полная, но мб и так норм, лол
-	if key == "bad check" {
-		return nil, false
-	}
-	return rm.f, rm.ok
-}
 
 func TestCheckBuilder_Build(t *testing.T) {
 
@@ -93,6 +54,7 @@ func TestCheckBuilder_Build(t *testing.T) {
 				f:  factory,
 				ok: test.registryHas,
 			}
+
 			b := check.NewBuilder(reg)
 
 			c, err := b.Build(config.Check{Type: "nice type"})

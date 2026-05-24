@@ -6,16 +6,7 @@ import (
 	"github.com/ImaSerix/go-gateway-service/internal/config"
 	"github.com/ImaSerix/go-gateway-service/internal/pipeline"
 	"github.com/ImaSerix/go-gateway-service/internal/types"
-	"gopkg.in/yaml.v3"
 )
-
-type Factory interface {
-	Create(raw yaml.Node) (pipeline.Middleware, error)
-}
-
-type Registry interface {
-	Get(key types.MiddlewareName) (Factory, bool)
-}
 
 type Builder struct {
 	registry Registry
@@ -29,6 +20,7 @@ func NewBuilder(registry Registry) *Builder {
 
 func (b *Builder) Build(cfg config.Middleware) (pipeline.Middleware, error) {
 
+	// Используется регистер для более удобного и юнифицированного и понятного создания middleware
 	f, ok := b.registry.Get(types.MiddlewareName(cfg.Type))
 	if !ok {
 		return nil, fmt.Errorf("%w: %s", ErrUnregisteredMiddlewareType, cfg.Type)

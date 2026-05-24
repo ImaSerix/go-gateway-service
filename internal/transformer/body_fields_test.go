@@ -2,7 +2,6 @@ package transformer_test
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -15,22 +14,22 @@ import (
 
 func TestBodyTransformer_Transform(t *testing.T) {
 	tests := []struct {
-		name      string
-		template  map[string]any
-		ctxValues map[string]any
-		body      any
-		expBody   any
-		expErr    error
+		name         string
+		template     map[string]any
+		renderValues map[string]string
+		body         any
+		expBody      any
+		expErr       error
 	}{
 		{
 			name: "success",
 			template: map[string]any{
 				"user": map[string]any{
-					"id": "{ctx:user_id}",
+					"id": "{ctx.user_id}",
 				},
 			},
-			ctxValues: map[string]any{
-				"user_id": 1001,
+			renderValues: map[string]string{
+				"{ctx.user_id}": "1001",
 			},
 			body: map[string]any{
 				"user": map[string]any{
@@ -40,7 +39,7 @@ func TestBodyTransformer_Transform(t *testing.T) {
 			expBody: map[string]any{
 				"user": map[string]any{
 					"username": "usrname",
-					"id":       1001.0,
+					"id":       "1001",
 				},
 			},
 			expErr: nil,
@@ -49,16 +48,16 @@ func TestBodyTransformer_Transform(t *testing.T) {
 			name: "nil body",
 			template: map[string]any{
 				"user": map[string]any{
-					"id": "{ctx:user_id}",
+					"id": "{ctx.user_id}",
 				},
 			},
-			ctxValues: map[string]any{
-				"user_id": 1001,
+			renderValues: map[string]string{
+				"{ctx.user_id}": "1001",
 			},
 			body: nil,
 			expBody: map[string]any{
 				"user": map[string]any{
-					"id": 1001.0,
+					"id": "1001",
 				},
 			},
 			expErr: nil,
@@ -67,11 +66,11 @@ func TestBodyTransformer_Transform(t *testing.T) {
 			name: "override body value",
 			template: map[string]any{
 				"user": map[string]any{
-					"id": "{ctx:user_id}",
+					"id": "{ctx.user_id}",
 				},
 			},
-			ctxValues: map[string]any{
-				"user_id": 1001,
+			renderValues: map[string]string{
+				"{ctx.user_id}": "1001",
 			},
 			body: map[string]any{
 				"user": map[string]any{
@@ -80,7 +79,7 @@ func TestBodyTransformer_Transform(t *testing.T) {
 			},
 			expBody: map[string]any{
 				"user": map[string]any{
-					"id": 1001.0,
+					"id": "1001",
 				},
 			},
 			expErr: nil,
@@ -89,16 +88,16 @@ func TestBodyTransformer_Transform(t *testing.T) {
 			name: "body primitive type",
 			template: map[string]any{
 				"user": map[string]any{
-					"id": "{ctx:user_id}",
+					"id": "{ctx.user_id}",
 				},
 			},
-			ctxValues: map[string]any{
-				"user_id": 1001,
+			renderValues: map[string]string{
+				"{ctx.user_id}": "1001",
 			},
 			body: "string",
 			expBody: map[string]any{
 				"user": map[string]any{
-					"id": 1001.0,
+					"id": "1001",
 				},
 			},
 			expErr: nil,
@@ -107,16 +106,16 @@ func TestBodyTransformer_Transform(t *testing.T) {
 			name: "body list",
 			template: map[string]any{
 				"user": map[string]any{
-					"id": "{ctx:user_id}",
+					"id": "{ctx.user_id}",
 				},
 			},
-			ctxValues: map[string]any{
-				"user_id": 1001,
+			renderValues: map[string]string{
+				"{ctx.user_id}": "1001",
 			},
 			body: []any{"string", "string2"},
 			expBody: map[string]any{
 				"user": map[string]any{
-					"id": 1001.0,
+					"id": "1001",
 				},
 			},
 			expErr: nil,
@@ -124,8 +123,8 @@ func TestBodyTransformer_Transform(t *testing.T) {
 		{
 			name:     "bindings nil, body primitive",
 			template: nil,
-			ctxValues: map[string]any{
-				"user_id": 1001,
+			renderValues: map[string]string{
+				"{ctx.user_id}": "1001",
 			},
 			body:    "string",
 			expBody: "string",
@@ -134,8 +133,8 @@ func TestBodyTransformer_Transform(t *testing.T) {
 		{
 			name:     "bindings nil, body list",
 			template: nil,
-			ctxValues: map[string]any{
-				"user_id": 1001,
+			renderValues: map[string]string{
+				"{ctx.user_id}": "1001",
 			},
 			body:    []any{"string", "string2"},
 			expBody: []any{"string", "string2"},
@@ -147,27 +146,24 @@ func TestBodyTransformer_Transform(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 
 			templateCopy := transformer.DeepCopy(test.template)
-			resolver := &resolverMock{
-				values: test.ctxValues,
+			render := &renderMock{
+				values: test.renderValues,
 			}
 
-			tr := transformer.NewBodyTransformer(test.template, resolver)
+			tr := transformer.NewBodyTransformer(test.template, render)
 
 			b, err := json.Marshal(test.body)
 			if err != nil {
 				t.Fatalf("expected no error on marshal, but got %v", err)
 			}
+
 			r := httptest.NewRequest("GET", "http://nice.url", nil)
 			r.Body = io.NopCloser(bytes.NewBuffer(b))
 			r.ContentLength = int64(len(b))
 			r.Header.Set("Content-Type", "application/json")
 
-			ctx := context.Background()
-			for ctxKey, v := range test.ctxValues {
-				ctx = context.WithValue(ctx, ctxKey, v)
-			}
-
 			err = tr.Transform(r)
+
 			if !errors.Is(err, test.expErr) {
 				t.Fatalf("expected error %v, but got %v", test.expErr, err)
 			}
@@ -207,48 +203,54 @@ func TestBodyTransformer_Transform_UnsupportedContentType(t *testing.T) {
 
 func TestBodyTransformer_Transform_NoKeyInContext(t *testing.T) {
 
-	resolver := &resolverMock{
-		values: map[string]any{},
+	badError := errors.New("bad error")
+
+	render := &renderMock{
+		values: map[string]string{},
+		err:    badError,
 	}
 
 	tr := transformer.NewBodyTransformer(map[string]any{
 		"user": map[string]any{
 			"id": "{user_id}",
 		},
-	}, resolver)
+	}, render)
 
 	r := httptest.NewRequest("GET", "http://nice.url", nil)
 	r.Header.Set("Content-Type", "application/json")
 
 	err := tr.Transform(r)
-	if !errors.Is(err, transformer.ErrInvalidKey) {
+	if !errors.Is(err, badError) {
 		t.Fatalf("expected erorr %v, but got %v", transformer.ErrInvalidKey, err)
 	}
 }
 
 func TestBodyTransformer_Bind(t *testing.T) {
 
+	badError := errors.New("bad error")
+
 	tests := []struct {
-		name      string
-		template  map[string]any
-		ctxValues map[string]any
-		expBody   map[string]any
-		expErr    error
+		name         string
+		template     map[string]any
+		renderValues map[string]string
+		renderError  error
+		expBody      map[string]any
+		expErr       error
 	}{
 		{
 			name: "success",
 			template: map[string]any{
 				"user": map[string]any{
-					"id": "{ctx:user_id}",
+					"id": "{ctx.user_id}",
 				},
 			},
 			expBody: map[string]any{
 				"user": map[string]any{
-					"id": 1001,
+					"id": "1001",
 				},
 			},
-			ctxValues: map[string]any{
-				"user_id": 1001,
+			renderValues: map[string]string{
+				"{ctx.user_id}": "1001",
 			},
 			expErr: nil,
 		},
@@ -256,26 +258,26 @@ func TestBodyTransformer_Bind(t *testing.T) {
 			name: "more than one",
 			template: map[string]any{
 				"user": map[string]any{
-					"id": "{ctx:user_id}",
+					"id": "{ctx.user_id}",
 				},
 				"chat": map[string]any{
-					"id":      "{ctx:chat_id}",
-					"content": "{ctx:chat_content}",
+					"id":      "{ctx.chat_id}",
+					"content": "{ctx.chat_content}",
 				},
 			},
 			expBody: map[string]any{
 				"user": map[string]any{
-					"id": 1001,
+					"id": "1001",
 				},
 				"chat": map[string]any{
-					"id":      1002,
+					"id":      "1002",
 					"content": "nice content",
 				},
 			},
-			ctxValues: map[string]any{
-				"user_id":      1001,
-				"chat_id":      1002,
-				"chat_content": "nice content",
+			renderValues: map[string]string{
+				"{ctx.user_id}":      "1001",
+				"{ctx.chat_id}":      "1002",
+				"{ctx.chat_content}": "nice content",
 			},
 			expErr: nil,
 		},
@@ -283,27 +285,20 @@ func TestBodyTransformer_Bind(t *testing.T) {
 			name: "no key in context",
 			template: map[string]any{
 				"user": map[string]any{
-					"id": "{ctx:user_id}",
+					"id": "{ctx.user_id}",
 				},
 				"chat": map[string]any{
-					"id":      "{ctx:chat_id}",
-					"content": "{ctx:chat_content}",
+					"id":      "{ctx.chat_id}",
+					"content": "{ctx.chat_content}",
 				},
 			},
-			expBody: map[string]any{
-				"user": map[string]any{
-					"id": 1001,
-				},
-				"chat": map[string]any{
-					"id":      1002,
-					"content": "nice content",
-				},
+			expBody: nil,
+			renderValues: map[string]string{
+				"{ctx.chat_id}":      "1002",
+				"{ctx.chat_content}": "nice content",
 			},
-			ctxValues: map[string]any{
-				"chat_id":      1002,
-				"chat_content": "nice content",
-			},
-			expErr: transformer.ErrInvalidKey,
+			renderError: badError,
+			expErr:      badError,
 		},
 		{
 			name: "placeholder not a string",
@@ -312,8 +307,8 @@ func TestBodyTransformer_Bind(t *testing.T) {
 					"id": 1001,
 				},
 				"chat": map[string]any{
-					"id":      "{ctx:chat_id}",
-					"content": "{ctx:chat_content}",
+					"id":      "{ctx.chat_id}",
+					"content": "{ctx.chat_content}",
 				},
 			},
 			expBody: map[string]any{
@@ -321,13 +316,13 @@ func TestBodyTransformer_Bind(t *testing.T) {
 					"id": 1001,
 				},
 				"chat": map[string]any{
-					"id":      1002,
+					"id":      "1002",
 					"content": "nice content",
 				},
 			},
-			ctxValues: map[string]any{
-				"chat_id":      1002,
-				"chat_content": "nice content",
+			renderValues: map[string]string{
+				"{ctx.chat_id}":      "1002",
+				"{ctx.chat_content}": "nice content",
 			},
 			expErr: nil,
 		},
@@ -338,8 +333,8 @@ func TestBodyTransformer_Bind(t *testing.T) {
 					"id": "{id",
 				},
 				"chat": map[string]any{
-					"id":      "{ctx:chat_id}",
-					"content": "{ctx:chat_content}",
+					"id":      "{ctx.chat_id}",
+					"content": "{ctx.chat_content}",
 				},
 			},
 			expBody: map[string]any{
@@ -351,11 +346,12 @@ func TestBodyTransformer_Bind(t *testing.T) {
 					"content": "nice content",
 				},
 			},
-			ctxValues: map[string]any{
-				"chat_id":      1002,
-				"chat_content": "nice content",
+			renderValues: map[string]string{
+				"{ctx.chat_id}":      "1002",
+				"{ctx.chat_content}": "nice content",
 			},
-			expErr: nil,
+			renderError: badError,
+			expErr:      badError,
 		},
 		{
 			name: "template without placeholders",
@@ -379,9 +375,9 @@ func TestBodyTransformer_Bind(t *testing.T) {
 				},
 				"ok": true,
 			},
-			ctxValues: map[string]any{
-				"chat_id":      1002,
-				"chat_content": "nice content",
+			renderValues: map[string]string{
+				"{ctx.chat_id}":      "1002",
+				"{ctx.chat_content}": "nice content",
 			},
 			expErr: nil,
 		},
@@ -390,21 +386,14 @@ func TestBodyTransformer_Bind(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 
-			ctx := context.Background()
-
 			r := httptest.NewRequest("GET", "http://nice.url", nil)
 
-			for key, v := range test.ctxValues {
-				ctx = context.WithValue(ctx, key, v)
+			render := &renderMock{
+				values: test.renderValues,
+				err:    test.renderError,
 			}
 
-			r = r.WithContext(ctx)
-
-			resolver := &resolverMock{
-				values: test.ctxValues,
-			}
-
-			bt := transformer.NewBodyTransformer(test.template, resolver)
+			bt := transformer.NewBodyTransformer(test.template, render)
 
 			binded, err := bt.Bind(r, test.template)
 			if !errors.Is(err, test.expErr) {

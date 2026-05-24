@@ -16,12 +16,12 @@ type HeaderRequired struct {
 
 func NewHeaderRequiredCheck(cfg config.HeaderRequiredCheck) (*HeaderRequired, error) {
 
-	if len(cfg.Header) == 0 {
+	if len(cfg.Headers) == 0 {
 		return nil, ErrEmptyHeaders
 	}
 
 	return &HeaderRequired{
-		requiredHeaders: cfg.Header,
+		requiredHeaders: cfg.Headers,
 	}, nil
 }
 

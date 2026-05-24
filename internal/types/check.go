@@ -3,13 +3,8 @@ package types
 type CheckName string
 
 var (
-	Auth           CheckName = "auth"
-	HeaderRequired CheckName = "required_header"
-	Inject         CheckName = "inject"
+	Policy         CheckName = "policy"
+	HeaderRequired CheckName = "header_required"
 	IPWhiteList    CheckName = "ip_whitelist"
-	QueryRequired  CheckName = "required_query"
-
-	//TODO: чеки ниже имеет смысл заменить на middleware
-	RateLimitC CheckName = "rate_limit"
-	TimeoutC   CheckName = "timeout"
+	QueryRequired  CheckName = "query_required"
 )
