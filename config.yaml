@@ -1,0 +1,22 @@
+server:
+  middlewares:
+    - type: recovery
+    - type: logging
+    - type: request_id
+
+routes:
+  - path: /users/{id}
+    method: GET
+    checks:
+      - type: header_required
+        config:
+          headers:
+            - X-Request-ID
+    transforms:
+      header:
+        X-Request-ID: "{header:X-Request-ID}"
+    upstream:
+      scheme: https
+      host: jsonplaceholder.typicode.com
+      path: /users/{route:id}
+      method: GET

@@ -1,0 +1,17 @@
+server:
+  middlewares:
+    - type: recovery
+    - type: logging
+    - type: request_id
+
+routes:
+  - path: /
+    method: GET
+    transforms:
+      header:
+        X-Gateway: go-gateway-service
+    upstream:
+      scheme: https
+      host: jsonplaceholder.typicode.com
+      path: /users
+      method: GET
