@@ -58,9 +58,7 @@ func MakeURL(scheme string, host string, path string) (*url.URL, error) {
 		return u, nil
 	}
 
-	for _, p := range strings.Split(trim, "/") {
-		u.JoinPath(p)
-	}
+	u.Path = "/" + strings.TrimPrefix(trim, "/")
 
 	return u, nil
 }

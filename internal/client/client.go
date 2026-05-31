@@ -29,7 +29,7 @@ func (c *Upstream) Do(base *http.Request) (*http.Response, error) {
 
 	r := base.Clone(base.Context())
 
-	u, err := c.render.Render(c.target.String(), r)
+	u, err := c.render.Render(rawTarget(c.target), r)
 	if err != nil {
 		return nil, err
 	}
@@ -38,6 +38,7 @@ func (c *Upstream) Do(base *http.Request) (*http.Response, error) {
 		return nil, err
 	}
 	r.URL = t
+	r.RequestURI = ""
 
 	r.Method = c.method
 
@@ -47,4 +48,13 @@ func (c *Upstream) Do(base *http.Request) (*http.Response, error) {
 	}
 
 	return res, nil
+}
+
+func rawTarget(u *url.URL) string {
+	raw := u.Scheme + "://" + u.Host + u.Path
+	if u.RawQuery != "" {
+		raw += "?" + u.RawQuery
+	}
+
+	return raw
 }

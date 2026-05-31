@@ -17,9 +17,7 @@ func NewMultiResolver() *MultiResolver {
 	r.Register("query", NewQueryResolver())
 	r.Register("header", NewHeaderResolver())
 
-	return &MultiResolver{
-		resolvers: map[string]Resolver{},
-	}
+	return r
 }
 
 func (dr *MultiResolver) Register(source string, resolver Resolver) {

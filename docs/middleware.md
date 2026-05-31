@@ -1,47 +1,114 @@
-# Описание Middleware
+# Middleware
 
-Описание middleware, как слоя в жизненом цикле запроса.
+Middleware может быть глобальным (`server.middlewares`) или локальным (`routes[].middlewares`). Локальные middleware выполняются после роутинга и до checks.
 
-## Необходимость и ответственность
-Middleaware имеет поведение, которое нельзя привезать к определённому роуту, и может применять поверх всех или во многих роутах или частях логики роута, или работает с результатом логики. 
+Актуальные middleware:
+- `cors`
+- `recovery`
+- `rate_limit`
+- `logging`
+- `request_id`
+- `real_ip`
+- `timeout`
+- `metric`
+- `inject`
 
-Middleware имеет права закончить выполнение запроса, читать данные запроса и ответа (для метрик, логирования или по другой причине), а также в редких случаях модифицировать (например, идентифицировать клиента), но такое поведение указано в документации типа middleware, если оно есть.
+## cors
 
+```yaml
+middlewares:
+  - type: cors
+    config:
+      allowed:
+        origin:
+          - http://example.local
+        method:
+          - GET
+          - POST
+        header:
+          - Content-Type
+          - Authorization
+```
 
-## Место применения
-На данный момент middleware можно применить, как глобально (на все роуты сразу), так и локально (на определённый роут).
+`allowed.origin` обязателен. `method` и `header` можно оставить пустыми, но тогда CORS-ответ будет без этих разрешений.
 
-### Глобально
-Описываются в [server](./config.md#server) тэге, под тэгом middlewares.
+## recovery
 
-Такие middleware будут выполняться перед самим роутингом.
+```yaml
+middlewares:
+  - type: recovery
+```
 
-### Локально
-Описываются в [route](./config.md#route) тэге, под тэгом middlewares.
+Перехватывает panic и возвращает HTTP 500.
 
-Такие middleware выполяются после роутинга, но до чеков и трансформеров.
+## rate_limit
 
-## На данный момент существуют такие типы middlewarе
+```yaml
+middlewares:
+  - type: rate_limit
+    config:
+      limit: 50
+      window: 1m
+```
 
-### CORS
-Middleware, которое определяет политику CORS для браузеров.
+Ограничивает количество запросов за окно `window`.
 
-Позволяет настроить как разрешённые origin, так методы и хэдэры для чтения.
+## logging
 
-Структуру настройки можно просмотреть [cors](./config.md#cors) 
+```yaml
+middlewares:
+  - type: logging
+```
 
-### Recovery
+Логирует базовую информацию по запросу.
 
-### RateLimit
+## request_id
 
-### Logging
+```yaml
+middlewares:
+  - type: request_id
+```
 
-### RequestID
+Добавляет request id в context/headers.
 
-### RealIP
+## real_ip
 
-### TimeOut
+```yaml
+middlewares:
+  - type: real_ip
+```
 
-### Metric
+Определяет клиентский IP по proxy headers, если они есть.
 
-### Inject
+## timeout
+
+```yaml
+middlewares:
+  - type: timeout
+    config:
+      duration: 2s
+```
+
+Ограничивает время обработки запроса.
+
+## metric
+
+```yaml
+middlewares:
+  - type: metric
+```
+
+Собирает простые метрики запросов.
+
+## inject
+
+```yaml
+middlewares:
+  - type: inject
+    config:
+      context:
+        service_name: gateway
+        version: v1
+```
+
+Добавляет литеральные значения в `request.Context()`. Сейчас этот middleware не делает внутренний запрос и не использует Store.

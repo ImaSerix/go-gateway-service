@@ -18,7 +18,7 @@ type Proxy interface {
 }
 
 type Store interface {
-	Save(context.Context, *http.Request) (context.Context, error)
+	Save(context.Context, *http.Response) (context.Context, error)
 }
 
 type Middleware = func(http.Handler) http.Handler

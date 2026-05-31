@@ -6,38 +6,8 @@ import (
 	"github.com/ImaSerix/go-gateway-service/internal/check"
 	"github.com/ImaSerix/go-gateway-service/internal/config"
 	"github.com/ImaSerix/go-gateway-service/internal/pipeline"
-	"github.com/ImaSerix/go-gateway-service/internal/renderer"
 	"gopkg.in/yaml.v3"
 )
-
-// DEPRECATED
-//
-//	TODO: Нужно создать альтернативу - policy чек, с переиспользованием всяких нынешних хорошо работающих вещей
-//
-// type AuthFactory struct {
-// 	client *http.Client
-// }
-
-// func NewAuthFactory(client *http.Client) *AuthFactory {
-// 	return &AuthFactory{
-// 		client: client,
-// 	}
-// }
-
-// func (f *AuthFactory) Create(raw yaml.Node, render renderer.Renderer) (pipeline.Checker, error) {
-
-// 	var cfg config.AuthCheck
-// 	if err := raw.Decode(&cfg); err != nil {
-// 		return nil, fmt.Errorf("new auth check factory: %w", err)
-// 	}
-
-// 	c, err := check.NewAuth(cfg, f.client)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	return c, nil
-// }
 
 type PolicyFactory struct {
 	transformBuilder TransformBuilder
@@ -57,7 +27,7 @@ func (f *PolicyFactory) Create(raw yaml.Node) (pipeline.Checker, error) {
 
 	var cfg config.PolicyCheck
 	if err := raw.Decode(&cfg); err != nil {
-		return nil, fmt.Errorf("new header required check factory: %w", err)
+		return nil, fmt.Errorf("new policy check factory: %w", err)
 	}
 
 	t, err := f.transformBuilder.BuildMany(cfg.Transform)
@@ -75,17 +45,13 @@ func (f *PolicyFactory) Create(raw yaml.Node) (pipeline.Checker, error) {
 		return nil, fmt.Errorf("create policy check: %w", err)
 	}
 
-	return check.NewPolicyCheck(t, c, s), nil
+	return check.NewPolicyCheck(t, c, s, cfg.ExpectedStatus), nil
 }
 
-type HeaderRequiredFactory struct {
-	render renderer.Renderer
-}
+type HeaderRequiredFactory struct{}
 
-func NewHeaderRequiredFactory(render renderer.Renderer) *HeaderRequiredFactory {
-	return &HeaderRequiredFactory{
-		render: render,
-	}
+func NewHeaderRequiredFactory() *HeaderRequiredFactory {
+	return &HeaderRequiredFactory{}
 }
 
 func (f *HeaderRequiredFactory) Create(raw yaml.Node) (pipeline.Checker, error) {
@@ -103,46 +69,17 @@ func (f *HeaderRequiredFactory) Create(raw yaml.Node) (pipeline.Checker, error) 
 	return c, nil
 }
 
-// DEPRECATED
-//
-// TODO: Создать альтернативный middleware, так как это не чек, он ничего не проверяет
-//
-// type InjectFactory struct{}
+type IPWhiteListFactory struct{}
 
-// func NewInjectFactory() *InjectFactory {
-// 	return &InjectFactory{}
-// }
-
-// func (f *InjectFactory) Create(raw yaml.Node, render renderer.Renderer) (pipeline.Checker, error) {
-
-// 	var cfg config.InjectCheck
-// 	if err := raw.Decode(&cfg); err != nil {
-// 		return nil, fmt.Errorf("new inject check factory: %w", err)
-// 	}
-
-// 	c, err := check.NewInject(cfg)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	return c, nil
-// }
-
-type IPWhiteListFactory struct {
-	render renderer.Renderer
-}
-
-func NewIPWhiteListFactory(render renderer.Renderer) *IPWhiteListFactory {
-	return &IPWhiteListFactory{
-		render: render,
-	}
+func NewIPWhiteListFactory() *IPWhiteListFactory {
+	return &IPWhiteListFactory{}
 }
 
 func (f *IPWhiteListFactory) Create(raw yaml.Node) (pipeline.Checker, error) {
 
 	var cfg config.IPWhiteListCheck
 	if err := raw.Decode(&cfg); err != nil {
-		return nil, fmt.Errorf("new inject check factory: %w", err)
+		return nil, fmt.Errorf("new ip whitelist check factory: %w", err)
 	}
 
 	c, err := check.NewIPWhiteList(cfg)
@@ -153,21 +90,17 @@ func (f *IPWhiteListFactory) Create(raw yaml.Node) (pipeline.Checker, error) {
 	return c, nil
 }
 
-type QueryRequiredFactory struct {
-	render renderer.Renderer
-}
+type QueryRequiredFactory struct{}
 
-func NewQueryRequiredFactory(render renderer.Renderer) *QueryRequiredFactory {
-	return &QueryRequiredFactory{
-		render: render,
-	}
+func NewQueryRequiredFactory() *QueryRequiredFactory {
+	return &QueryRequiredFactory{}
 }
 
 func (f *QueryRequiredFactory) Create(raw yaml.Node) (pipeline.Checker, error) {
 
 	var cfg config.QueryRequiredCheck
 	if err := raw.Decode(&cfg); err != nil {
-		return nil, fmt.Errorf("new inject check factory: %w", err)
+		return nil, fmt.Errorf("new query required check factory: %w", err)
 	}
 
 	c, err := check.NewQueryRequired(cfg)

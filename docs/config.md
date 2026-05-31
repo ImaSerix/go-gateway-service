@@ -1,380 +1,196 @@
-# Файл конфигурации сервисса `config.yaml`
+# Конфигурация
 
-Эта документация описывает структуру `config.yaml`.
-
-## Root объект
+Файл `config.yaml` состоит из `server` и `routes`.
 
 ```yaml
-server: {}
+server:
+  middlewares: []
 routes: []
 ```
-| Field             | Type      | Description                       |
-| ---               | ---       | ---                               |
-| [server](#server) | объект    | глобальная конфигурация сервера   |
-| [routes](#route) | список      | список определений путей сервиса  |
 
 ## Server
-Глобальная конфигурация сервера.
-
-#### Структура 
 
 ```yaml
 server:
+  middlewares:
+    - type: recovery
+    - type: logging
+```
+
+`server.middlewares` - глобальные middleware, применяются ко всем маршрутам.
+
+## Route
+
+```yaml
+routes:
+  - path: /users/{id}
+    method: GET
     middlewares: []
-
+    checks: []
+    transforms: {}
+    upstream: {}
 ```
 
-### Поля
+Поля:
+- `path` - входящий путь. Может содержать chi-параметры, например `/users/{id}`.
+- `method` - входящий HTTP-метод.
+- `middlewares` - middleware только для этого route.
+- `checks` - проверки перед transform/proxy.
+- `transforms` - изменения запроса перед proxy.
+- `upstream` - целевой сервис.
 
-| Field                     | Type      | Description                       |
-| ---                       | ---       | ---                               |
-| [middlewares](#middleware) | список    | глобально применяемые middleware, выполняются по порядку   |
-
-#### Пример
+## Upstream
 
 ```yaml
-server:
-    middleawares:
-        - type: rate_limit
-          config:
-            limit: 50
-            window: 1m
-        - type: logger
+upstream:
+  scheme: http
+  host: api.local
+  path: /users/{route:id}
+  method: GET
 ```
 
-### Route
-Список определений роутов сервиса.
+Поля:
+- `scheme` - `http`, `https` или `ws`.
+- `host` - host без scheme.
+- `path` - путь upstream, может содержать request-шаблоны.
+- `method` - метод upstream. Для route upstream при пустом значении берется `route.method`.
 
-#### Структура 
+## Resolver
 
-```yaml
-    routes:
-        - path: `строка`
-          method: `строка`
-          middlewares: [] (опциональное)
-          checks: [] (опциональное)
-          transforms: {} (опциональное)
-          upstream: {}
-```
+Шаблон: `{source:key}`.
 
-#### Поля
+Для request-renderer доступны:
+- `{context:key}`
+- `{route:key}`
+- `{query:key}`
+- `{header:key}`
 
-| Field | Type | Description |
-| --- | --- | --- |
-| path | строка | путь по которому будет доступен роут, может содержать шаблонные значения, например, `/user/{id}`
-| method | строка | метод по которому будет доступен роут
-| [middlewares](#Middleware) | список | применяемые к роуту middleware
-| [checks](#Check) | список | применяемые к роуту проверки
-| [transforms](#Transform) | объект | преобразования начального запроса
-| [upstream](#Upstream) | объект | конфигурация проксирования
+Для response-renderer в `store` доступны только:
+- `{header:key}`
+- `{body:key}`
 
-#### Пример
+`{body:key}` читает только поле верхнего уровня JSON-объекта response body. Вложенные пути и массивы пока не поддерживаются.
 
-```yaml
+## Checks
 
-route:
-    - path: /chat/{id}
-      method: GET
-      middlewares:
-        - type: timeout
-          config:
-            duration: 2s
-      checks:
-        - type: header_required
-          config:
-            headers:
-                - X-Username
-                - X-Password  
-        - type: auth
-          config:
-            url: "http://auth.url"
-            headers:
-                X-Username: X-Username
-                X-Password: X-Password
-            method: POST
-            store:
-                headers:
-                    token: X-Token
-            expected_status: 200
-     transforms:
-        headers:
-            X-Token: {context:token}
-        query: 
-            limit: {query:limit} 
-     upstream:
-        host: http://example.host
-        scheme: http
-        path: /user/{route:id}
-        method: GET
+Актуальные checks соответствуют регистрации в `internal/builder/bootstrap.go`: `policy`, `header_required`, `ip_whitelist`, `query_required`.
 
-    - path: /ping
-      method: GET
-      upstream:
-        host: http://example.host
-        scheme: http
-        path: /ping
-        method: GET
-
-```
-
-### Middleware
-Описание и настройка миддлеваре.
-
-### Структура
+### policy
 
 ```yaml
-middleware:
-  - type: string
-    config: {}
-```
-
-### Поля
-
-| Field | Type | Description |
-| --- | --- | --- |
-| type | string | Тип middleware
-| config | object | Настройки middleware. Некоторые middleware не требуют настройки.
-
-### Типы и небольшие сниппеты настроек
-
-#### CORS
-
-```yaml
-middleware:
-  - type: cors
-    config: 
-      origin:
-        - http://example.host
-        - 127.0.0.1
-      method:
-        - GET
-        - POST
-      header:
-        - Content-Type
-        - X-Request-ID 
-        - Authorization
-``` 
-
-Все тэги config обязательны. Если какого-то тэга не будет, то этот тэг не будет отдаваться при CORS запросах, что может привести к неожидаемому поведению.
-
-#### Recovery
-
-```yaml
-middleware:
-  - type: recovery
-```
-
-#### RateLimit
-
-```yaml
-middleware:
-  - type: rate_limit
-    config:
-      limit: int
-      window: duration
-```
-
-- limit: любое позитивное число. Кол-во запросов на клиента за момент времени размером window.
-- window: время сброса ограничения. Валидный time.Duration (например, 1s, 2m, 1h и другие).
-
-#### Logging
-
-```yaml
-middleware:
-  - type: logging
-```
-
-#### RequestID
-
-```yaml
-middleware:
-  - type: request_id
-```
-
-#### RealIP
-
-```yaml
-middleware:
-  - type: real_ip
-```
-
-#### TimeOut
-
-```yaml
-middleware:
-  - type: timeout
-    config:
-      duration: duration
-```
-
-- duration: время на выполнение запроса. Валидный time.Duration (например, 1s, 2m, 1h и другие).
-
-#### Metric
-
-```yaml
-middleware:
-  - type: metric
-```
-
-#### Inject
-
-```yaml
-middleware:
-  - type: inject
-    config:
-      context:
-        name: {query:name}
-```
-- context: ключи и значения, которые надо добавить в контекст
-
-### Check
-Описание и настройка чеков.
-
-#### Policy
-
-```yaml
-check:
+checks:
   - type: policy
     config:
-      transform: (Transform config object)
+      transform:
         header:
-          X-Username: {header:X-Username}
-          X-Password: {header:X-Password}
-      upstream: (Upstream config object)
-          host: example.host
-          scheme: http
-          path: /auth (optional)
-          method: POST (default, POST)
+          X-Request-ID: "{header:X-Request-ID}"
+        query_params:
+          locale: "{query:locale}"
+      upstream:
+        scheme: http
+        host: policy.local
+        path: /auth/{route:id}
+        method: POST
       expected_status: 200
-      store:  (Store config object)
-        token: {header:X-Token}
+      store:
+        token: "{header:X-Token}"
+        user_id: "{body:user_id}"
 ```
 
-- [transform](#transform)
-- [upstream](#upstream)
-- expected_status: ожидаемый статус ответа usptream
-- [store](#store)
+`policy` делает внутренний запрос в `upstream`, применяя к нему `transform`, сравнивает response status с `expected_status`, а затем сохраняет данные через `store`.
 
-#### Header required
+### header_required
 
 ```yaml
-check:
+checks:
   - type: header_required
     config:
-      header:
-        - X-Username
-        - X-Password
+      headers:
+        - X-Request-ID
 ```
 
-- header: ожидаемые хэдэры в запросе
-
-#### IPWhiteList
+### ip_whitelist
 
 ```yaml
-check:
+checks:
   - type: ip_whitelist
     config:
-      ip:
+      ips:
         - 127.0.0.1
-        - 192.168.0.1
 ```
 
-- ip: разрешённые ip, без порта
-
-#### Query required
+### query_required
 
 ```yaml
-check:
+checks:
   - type: query_required
     config:
-      query:
-        - age
-        - name
+      query_params:
+        - locale
 ```
 
-- query: ожидаемые GET параметры
-
-### Store
-Описание сохраняемых в контекст пар ключ - значение.
-
-Может содержать произвольные ключ-значение.
-
-### Структура
-
-```yaml
-store: {}
-```
-
-### Пример
+## Store
 
 ```yaml
 store:
-  token: {header:X-Token}
-``` 
-
-### Transform
-Описание преображений запроса.
-
-#### Структура
-
-```yaml
-transform:
-  query: {}
-  header: {}
-  body: {}
+  token: "{header:X-Token}"
+  user_id: "{body:user_id}"
 ```
 
-#### Поля
+Store работает с `http.Response`, а не с входящим `http.Request`. Поэтому он уместен только в checks или middleware, которые делают внутренний запрос и получают response.
 
-| Field | Type | Description |
-| --- | --- | --- |
-| query | объект | Пары, ключ: значение, которое сохраняется в GET параметры запроса
-| header | объект | Пары, ключ: значение, по ключу сохраняется значение в хэдэр
-| body | объект | Пары, ключ: значение, по ключу сохраняется значение в боди (значение также может быть объектом)
-
-#### Пример
+## Transforms
 
 ```yaml
-transform:
-  query:
-    language: en
+transforms:
   header:
-    X-Token: {ctx:token}
-  body:
+    X-User-ID: "{route:id}"
+  query_params:
+    locale: "{query:locale}"
+  body_fields:
     user:
-      id: {ctx:user_id}
+      id: "{route:id}"
 ```
 
-### Upstream
-Описание запроса, проксируемого сервером.
+Типы:
+- `header` - выставляет headers.
+- `query_params` - выставляет query-параметры.
+- `body_fields` - мержит поля в JSON body. Сейчас рекурсивно поддерживаются объекты, но не массивы.
 
-#### Структура
+## Middleware
 
 ```yaml
-upstream:
-  host: string
-  scheme: string
-  path: string
-  method: string
+middlewares:
+  - type: cors
+    config:
+      allowed:
+        origin:
+          - http://example.local
+        method:
+          - GET
+        header:
+          - Authorization
 ```
 
-#### Поля
+Актуальные middleware: `cors`, `recovery`, `rate_limit`, `logging`, `request_id`, `real_ip`, `timeout`, `metric`, `inject`.
 
-| Field | Type | Description |
-| --- | --- | --- |
-| host | string | Хост к которому обращаются
-| scheme | string | Схема по которой обращаются
-| path | string | Путь по которому обращаются
-| method | string | Метод который используют
-
-#### Пример
+Короткие конфиги:
 
 ```yaml
-upstream:
-  host: example.host
-  scheme: http
-  path: /users (optional)
-  method: GET (optional)
+- type: rate_limit
+  config:
+    limit: 50
+    window: 1m
+
+- type: timeout
+  config:
+    duration: 2s
+
+- type: inject
+  config:
+    context:
+      service_name: gateway
+      version: v1
 ```
 
-Тэг method и path не обязателен (при их оттуствии, копируется с настроек [route](#route)).  
+`recovery`, `logging`, `request_id`, `real_ip` и `metric` не требуют config.

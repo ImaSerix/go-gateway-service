@@ -9,17 +9,19 @@ import (
 
 	"github.com/ImaSerix/go-gateway-service/internal/builder"
 	"github.com/ImaSerix/go-gateway-service/internal/builder/check"
+	clientbuilder "github.com/ImaSerix/go-gateway-service/internal/builder/client"
 	"github.com/ImaSerix/go-gateway-service/internal/builder/endpoint"
 	"github.com/ImaSerix/go-gateway-service/internal/builder/handler"
 	"github.com/ImaSerix/go-gateway-service/internal/builder/middleware"
 	"github.com/ImaSerix/go-gateway-service/internal/builder/proxy"
 	"github.com/ImaSerix/go-gateway-service/internal/builder/render"
 	"github.com/ImaSerix/go-gateway-service/internal/builder/resolver"
+	storebuilder "github.com/ImaSerix/go-gateway-service/internal/builder/store"
 	"github.com/ImaSerix/go-gateway-service/internal/builder/transformer"
 	"github.com/ImaSerix/go-gateway-service/internal/config"
+	"github.com/ImaSerix/go-gateway-service/internal/renderer"
+	resolverpkg "github.com/ImaSerix/go-gateway-service/internal/resolver"
 )
-
-//TODO Может быть имеет смысл сделать ExternalPolicyCheck, что-то похожее на auth но немного другое. И вероятно сделать какой-нибудь универсальный чек, и на auth и на External
 
 func main() {
 
@@ -41,14 +43,18 @@ func main() {
 	resolver := resolver.NewMultiResolverBuilder().Build()
 
 	render := render.NewBuilder(resolver).Build()
+	responseRender := renderer.NewResponseRender(resolverpkg.NewResponseMultiResolver())
 
-	builder.RegisterChecks(checkRegisty, render, client)
+	transformerBuilder := transformer.NewBuilder(transformerRegistry)
+	clientBuilder := clientbuilder.NewBuilder(client, render)
+	storeBuilder := storebuilder.NewBuilder(responseRender)
+
+	builder.RegisterChecks(checkRegisty, transformerBuilder, clientBuilder, storeBuilder)
 	builder.RegisterTransformers(transformerRegistry, render)
 	builder.RegisterMiddlewares(middlewareRegistry)
 
 	checkBuilder := check.NewBuilder(checkRegisty)
 	middlewareBuilder := middleware.NewBuilder(middlewareRegistry)
-	transformerBuilder := transformer.NewBuilder(transformerRegistry)
 	proxyBuilder := proxy.NewBuilder(client, render)
 	endpointBuilder := endpoint.NewBuilder(checkBuilder, transformerBuilder, middlewareBuilder, proxyBuilder)
 

@@ -35,11 +35,17 @@ func (rb *ReverseBuilder) Build(cfg config.Upstream) (pipeline.Proxy, error) {
 		return nil, err
 	}
 
+	var transport http.RoundTripper
+	if rb.client != nil {
+		transport = rb.client.Transport
+	}
+
 	p := &httputil.ReverseProxy{
+		Transport: transport,
 		Rewrite: func(pr *httputil.ProxyRequest) {
 
 			// TODO: думаю тут будет ошибка
-			renderedURL, err := rb.render.Render(u.String(), pr.In)
+			renderedURL, err := rb.render.Render(rawTarget(u), pr.In)
 			if err != nil {
 				return
 			}
@@ -55,4 +61,13 @@ func (rb *ReverseBuilder) Build(cfg config.Upstream) (pipeline.Proxy, error) {
 	}
 
 	return p, nil
+}
+
+func rawTarget(u *url.URL) string {
+	raw := u.Scheme + "://" + u.Host + u.Path
+	if u.RawQuery != "" {
+		raw += "?" + u.RawQuery
+	}
+
+	return raw
 }

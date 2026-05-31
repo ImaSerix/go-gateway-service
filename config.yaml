@@ -1,5 +1,5 @@
 server:
-  middleware:
+  middlewares:
     - type: recovery
     - type: logging
     - type: request_id
@@ -8,13 +8,15 @@ routes:
   - path: /users/{id}
     method: GET
     checks:
-      - type: inject
+      - type: header_required
         config:
-          ctx:
-            service_name: gateway
-    transform:
+          headers:
+            - X-Request-ID
+    transforms:
       header:
-        X-Service-Name: context.service_name
+        X-Request-ID: "{header:X-Request-ID}"
     upstream:
-      url: https://jsonplaceholder.typicode.com/users
+      scheme: https
+      host: jsonplaceholder.typicode.com
+      path: /users/{route:id}
       method: GET

@@ -10,10 +10,10 @@ import (
 
 type Store struct {
 	template map[string]string
-	render   renderer.Render
+	render   renderer.ResponseRenderer
 }
 
-func NewStore(template map[string]string, render renderer.Render) *Store {
+func NewStore(template map[string]string, render renderer.ResponseRenderer) *Store {
 	return &Store{
 		template: template,
 		render:   render,
@@ -23,12 +23,12 @@ func NewStore(template map[string]string, render renderer.Render) *Store {
 func (s *Store) Save(ctx context.Context, res *http.Response) (context.Context, error) {
 
 	if res == nil {
-		return ctx, ErrNilRequest
+		return ctx, ErrNilResponse
 	}
 
 	for k, t := range s.template {
 
-		v, err := s.render.Render(t, req)
+		v, err := s.render.Render(t, res)
 		if err != nil {
 			return ctx, fmt.Errorf("store save: %w", err)
 		}

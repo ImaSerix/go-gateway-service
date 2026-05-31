@@ -1,8 +1,6 @@
 package builder
 
 import (
-	"net/http"
-
 	"github.com/ImaSerix/go-gateway-service/internal/builder/check"
 	"github.com/ImaSerix/go-gateway-service/internal/builder/middleware"
 	"github.com/ImaSerix/go-gateway-service/internal/builder/transformer"
@@ -22,12 +20,11 @@ func RegisterMiddlewares(registy *middleware.MiddlewareRegistry) {
 	registy.Register(types.Inject, middleware.NewInjectFactory())
 }
 
-func RegisterChecks(registry *check.CheckRegistry, render renderer.Renderer, client *http.Client, t check.TransformBuilder, c check.ClientBuilder, s check.StoreBuilder) {
-	// registry.Register(types.Auth, check.NewAuthFactory(client))
+func RegisterChecks(registry *check.CheckRegistry, t check.TransformBuilder, c check.ClientBuilder, s check.StoreBuilder) {
 	registry.Register(types.Policy, check.NewPolicyFactory(t, c, s))
-	registry.Register(types.HeaderRequired, check.NewHeaderRequiredFactory(render))
-	registry.Register(types.IPWhiteList, check.NewIPWhiteListFactory(render))
-	registry.Register(types.QueryRequired, check.NewQueryRequiredFactory(render))
+	registry.Register(types.HeaderRequired, check.NewHeaderRequiredFactory())
+	registry.Register(types.IPWhiteList, check.NewIPWhiteListFactory())
+	registry.Register(types.QueryRequired, check.NewQueryRequiredFactory())
 }
 
 func RegisterTransformers(registry *transformer.TransformRegistry, render renderer.Renderer) {

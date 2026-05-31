@@ -1,179 +1,99 @@
 # go-gateway-service
 
-Учебный API Gateway на Go (chi), который проксирует запросы на upstream-сервисы, поддерживает middleware, checks, transform-пайплайн и шаблонный resolver.
+Учебный API Gateway на Go, который регистрирует маршруты из YAML-конфига, выполняет middleware и checks, трансформирует запрос и проксирует его в upstream.
 
-> ⚠️ Проект учебный: архитектура и реализация могут быть упрощены, местами намеренно оставлены шероховатости.
-
-## Содержание
-- [Быстрый старт](#быстрый-старт)
-- [Возможности](#возможности)
-- [Конфигурация](#конфигурация)
-  - [Корневые ключи](#корневые-ключи)
-  - [Описание `route`](#описание-route)
-  - [Upstream](#upstream)
-  - [Checks](#checks)
-  - [Middleware](#middleware)
-  - [Transform](#transform)
-- [Resolver и шаблоны значений](#resolver-и-шаблоны-значений)
-- [Store и контекст](#store-и-контекст)
-- [Пример config.yaml](#пример-configyaml)
-- [TODO](#todo)
+Подробные разделы лежат в `./docs`:
+- [config.md](./docs/config.md) - полный формат `config.yaml`.
+- [check.md](./docs/check.md) - актуальные checks и их ответственность.
+- [middleware.md](./docs/middleware.md) - актуальные middleware.
+- [transformer.md](./docs/transformer.md) - трансформации запроса.
+- [proxy.md](./docs/proxy.md) - слой проксирования.
+- [request-flow.md](./docs/request-flow.md) - порядок выполнения запроса.
 
 ## Быстрый старт
-1. Подготовьте `config.yaml`.
-2. Запустите:
+
 ```bash
 go run ./cmd/server -config ./config.yaml
 ```
-3. Сервис поднимет HTTP-сервер и зарегистрирует маршруты из `routes`.
 
-## Возможности
-- Глобальные и роут-специфичные middleware.
-- Проверки (checks) перед проксированием запроса.
-- Преобразование body/header перед отправкой в upstream.
-- Подстановка значений из запроса/контекста через resolver.
-- Гибкая YAML-конфигурация без перекомпиляции.
+Сервер читает `server.middlewares` и `routes`, после чего поднимает HTTP-handler на `:8080`.
 
-## Конфигурация
+## Кратко о конфиге
 
-### Корневые ключи
-- `server`: настройки сервера, сейчас в основном список глобальных middleware.
-- `routes`: список правил маршрутизации.
-
-### Описание `route`
-Для каждого элемента `routes`:
-- `path`: путь входящего запроса (например `/users/{id}` или `/posts`).
-- `method`: HTTP-метод входящего запроса (`GET`, `POST`, ...).
-- `middleware`: middleware, применяемые только к этому route.
-- `checks`: проверки, выполняются до proxy.
-- `transform`: модификации запроса (header/body).
-- `upstream`: куда и как проксировать запрос.
-
-### Upstream
-- `url` (string): полный адрес целевого ресурса.
-- `method` (string, optional): метод вызова upstream.
-  - Если не указан, берётся `route.method`.
-
-### Checks
-Общая структура элемента:
-```yaml
-- type: <check_name>
-  config:
-    ...
-```
-
-Поддерживаемые `type` и ключи `config`:
-
-1. `auth`
-   - `url`: URL сервиса авторизации.
-   - `method`: HTTP-метод запроса в auth-сервис.
-   - `forward_headers`: карта `куда_в_auth: откуда_из_входящего`.
-   - `expected_status`: ожидаемый HTTP-код от auth-сервиса.
-   - `store`: что сохранить из ответа auth в контекст.
-     - `body`: map `ctxKey: jsonField`
-     - `headers`: map `ctxKey: headerName`
-
-2. `required_header`
-   - `header`: список обязательных headers.
-
-3. `required_query`
-   - `query`: список обязательных query-параметров.
-
-4. `ip_whitelist`
-   - `ip`: список разрешённых IP.
-
-5. `rate_limit`
-   - `limit`: лимит запросов.
-   - `window`: окно времени (например `1m`).
-
-6. `inject`
-   - `ctx`: map `ctxKey: value`, принудительно добавляет значения в context.
-
-7. `timeout`
-   - `duration`: таймаут на check (например `2s`).
-
-### Middleware
-Общая структура:
-```yaml
-- type: <middleware_name>
-  config:
-    ...
-```
-
-Типы middleware:
-- `cors`
-  - `allowed.origin`: список origin.
-  - `allowed.method`: список HTTP-методов.
-  - `allowed.header`: список headers.
-- `recovery`
-- `logging`
-- `request_id`
-- `real_ip`
-- `timeout`
-  - `duration`: например `2s`.
-- `metric`
-- `rate_limit`
-  - `limit`, `window`.
-
-### Transform
-- `transform.header`: map `headerName: resolver.key`.
-- `transform.body`: map/объект шаблона body, где значения могут ссылаться на resolver-ключи.
-
-Пример:
-```yaml
-transform:
-  header:
-    X-User-ID: query.user_id
-  body:
-    authToken: context.token
-```
-
-## Resolver и шаблоны значений
-Формат ключа: `<source>.<name>`.
-
-Поддерживаемые `source`:
-- `query.<key>` — query-параметры.
-- `header.<key>` — входящие HTTP headers.
-- `router.<key>` — path params (chi URL params).
-- `context.<key>` — значения из `request.Context()`.
-
-Если ключ невалидный или source не зарегистрирован, резолвинг вернёт `not found`.
-
-## Store и контекст
-Ключевой практический момент:
-- В `auth.store` и `inject.ctx` данные сохраняются в `request.Context()` по указанному `ctxKey`.
-- Потом эти значения можно использовать в `transform` через `context.<ctxKey>`.
-
-Пример цепочки:
-1. `auth` достал `token` и сохранил как `context.auth_token` (фактически ключ `auth_token` в context).
-2. В `transform.header` указываете:
-   - `Authorization: context.auth_token`
-3. Перед проксированием header будет заполнен этим значением.
-
-## Пример config.yaml
 ```yaml
 server:
-  middleware:
+  middlewares:
     - type: recovery
     - type: logging
-    - type: request_id
 
 routes:
   - path: /users/{id}
     method: GET
+    middlewares:
+      - type: request_id
     checks:
-      - type: required_query
+      - type: header_required
         config:
-          query: ["locale"]
-      - type: inject
+          headers:
+            - X-Request-ID
+      - type: policy
         config:
-          ctx:
-            service_name: gateway
-    transform:
+          transform:
+            header:
+              X-Request-ID: "{header:X-Request-ID}"
+          upstream:
+            scheme: http
+            host: policy.local
+            path: /auth/{route:id}
+            method: POST
+          expected_status: 200
+          store:
+            token: "{header:X-Token}"
+            user_id: "{body:user_id}"
+    transforms:
       header:
-        X-Request-Locale: query.locale
-        X-Service-Name: context.service_name
+        Authorization: "Bearer {context:token}"
     upstream:
-      url: https://jsonplaceholder.typicode.com/users
+      scheme: http
+      host: api.local
+      path: /users/{route:id}
       method: GET
 ```
+
+## Актуальные checks
+
+Сейчас зарегистрированы только:
+- `policy` - делает внутренний HTTP-запрос, проверяет статус и может сохранить данные из response в context.
+- `header_required` - требует наличие headers.
+- `ip_whitelist` - пропускает только разрешенные IP.
+- `query_required` - требует наличие query-параметров.
+
+Старый `auth` check заменен на `policy` и не считается актуальным.
+
+## Resolver
+
+Шаблоны пишутся в формате `{source:key}`.
+
+Request-renderer используется в proxy, client и transformers:
+- `{context:key}` - значение из `request.Context()`.
+- `{route:key}` - параметр роутинга chi.
+- `{query:key}` - query-параметр входящего запроса.
+- `{header:key}` - header входящего запроса.
+
+Response-renderer используется только в `Store`, то есть только там, где код уже сделал внутренний запрос и получил `http.Response`.
+- `{header:key}` - header response.
+- `{body:key}` - поле верхнего уровня JSON body response.
+
+Ограничение Store намеренное: `body` сейчас читает только верхний уровень JSON-объекта. Вложенные пути, массивы и сложные выражения пока не поддерживаются.
+
+## Store
+
+`Store` сохраняет пары `contextKey: template` в `request.Context()` после внутреннего response. Практически это нужно для checks или middleware, которые сами вызывают внешний сервис и хотят передать результат дальше по цепочке. Текущий встроенный `inject` middleware только кладет литеральные значения в context и не использует Store.
+
+```yaml
+store:
+  token: "{header:X-Token}"
+  user_id: "{body:user_id}"
+```
+
+После `policy` эти значения доступны как `{context:token}` и `{context:user_id}` в последующих transforms.

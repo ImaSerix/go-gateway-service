@@ -2,14 +2,6 @@ package config
 
 type Store map[string]string
 
-// type AuthCheck struct {
-// 	URL            string            `yaml:"url"`
-// 	ForwardHeaders map[string]string `yaml:"forward_headers"`
-// 	Method         string            `yaml:"method"`
-// 	Store          Store             `yaml:"store"`
-// 	ExpectedStatus int               `yaml:"expected_status"`
-// }
-
 type PolicyCheck struct {
 	Transform      Transform `yaml:"transform"`
 	Upstream       Upstream  `yaml:"upstream"`
@@ -28,16 +20,3 @@ type QueryRequiredCheck struct {
 type IPWhiteListCheck struct {
 	IPs []string `yaml:"ips"`
 }
-
-// type RateLimitCheck struct {
-// 	Limit  int    `yaml:"limit"`
-// 	Window string `yaml:"window"`
-// }
-
-// type InjectCheck struct {
-// 	Ctx map[string]any `yaml:"ctx"`
-// }
-
-// type TimeoutCheck struct {
-// 	Duration string `yaml:"duration"`
-// }

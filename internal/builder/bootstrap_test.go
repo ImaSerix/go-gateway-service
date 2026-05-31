@@ -97,21 +97,16 @@ func TestBootstrap_RegisterChecks(t *testing.T) {
 		key     types.CheckName
 		expType any
 	}{
-		// {
-		// 	name:    "aut",
-		// 	key:     types.Auth,
-		// 	expType: &check.AuthFactory{},
-		// },
+		{
+			name:    "policy",
+			key:     types.Policy,
+			expType: &check.PolicyFactory{},
+		},
 		{
 			name:    "header required",
 			key:     types.HeaderRequired,
 			expType: &check.HeaderRequiredFactory{},
 		},
-		// {
-		// 	name:    "inject",
-		// 	key:     types.Inject,
-		// 	expType: &check.InjectFactory{},
-		// },
 		{
 			name:    "ip whitelist",
 			key:     types.IPWhiteList,
@@ -122,25 +117,13 @@ func TestBootstrap_RegisterChecks(t *testing.T) {
 			key:     types.QueryRequired,
 			expType: &check.QueryRequiredFactory{},
 		},
-		// {
-		// 	name:    "rate limit",
-		// 	key:     types.RateLimitC,
-		// 	expType: &check.RateLimitFactory{},
-		// },
-		// {
-		// 	name:    "timeout",
-		// 	key:     types.TimeoutC,
-		// 	expType: &check.TimeoutFactory{},
-		// },
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 
-			render := &rendererMock{}
-
 			reg := check.NewCheckRegistry()
-			builder.RegisterChecks(reg, render, http.DefaultClient)
+			builder.RegisterChecks(reg, nil, nil, nil)
 
 			f, ok := reg.Get(test.key)
 			if !ok {
