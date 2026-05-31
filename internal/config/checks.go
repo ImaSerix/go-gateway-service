@@ -1,9 +1,6 @@
 package config
 
-type Store struct {
-	Headers    map[string]string `yaml:"headers"`
-	BodyFields map[string]string `yaml:"body_fields"`
-}
+type Store map[string]string
 
 // type AuthCheck struct {
 // 	URL            string            `yaml:"url"`

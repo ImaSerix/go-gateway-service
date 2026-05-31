@@ -247,8 +247,7 @@ check:
           method: POST (default, POST)
       expected_status: 200
       store:  (Store config object)
-        header:
-          token: X-Token
+        token: {header:X-Token}
 ```
 
 - [transform](#transform)
@@ -298,29 +297,19 @@ check:
 ### Store
 Описание сохраняемых в контекст пар ключ - значение.
 
+Может содержать произвольные ключ-значение.
+
 ### Структура
 
 ```yaml
-store:
-  header: {}
-  body: {}
+store: {}
 ```
-
-### Поля
-
-| Field | Type | Description |
-| --- | --- | --- |
-| header | объект | Пары, ключ: хэдэр, по ключу сохраняется значение из хэдэра в контекст
-| body | объект | Пары, ключ: боди ключ, по ключу сохраняется значение из боди в контекст
 
 ### Пример
 
 ```yaml
 store:
-  header: 
-    token: X-Token
-  body:
-    refresh_token: refresh_token
+  token: {header:X-Token}
 ``` 
 
 ### Transform
