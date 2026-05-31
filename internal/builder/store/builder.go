@@ -2,6 +2,7 @@ package store
 
 import (
 	"github.com/ImaSerix/go-gateway-service/internal/config"
+	"github.com/ImaSerix/go-gateway-service/internal/pipeline"
 	"github.com/ImaSerix/go-gateway-service/internal/renderer"
 )
 
@@ -15,4 +16,4 @@ func NewBuilder(render renderer.Renderer) *Builder {
 	}
 }
 
-func (b *Builder) Build(cfg config.Store)
+func (b *Builder) Build(cfg config.Store) (pipeline.Store, error)

@@ -16,17 +16,17 @@ type Store interface {
 }
 
 type PolicyCheck struct {
-	transform      pipeline.Transformer
+	transforms     []pipeline.Transformer
 	upstream       UpstreamClient
 	store          Store
 	expectedStatus int
 }
 
-func NewPolicyCheck(transform pipeline.Transformer, upstream UpstreamClient, store Store) *PolicyCheck {
+func NewPolicyCheck(transforms []pipeline.Transformer, upstream UpstreamClient, store Store) *PolicyCheck {
 	return &PolicyCheck{
-		transform: transform,
-		upstream:  upstream,
-		store:     store,
+		transforms: transforms,
+		upstream:   upstream,
+		store:      store,
 	}
 }
 
@@ -37,9 +37,11 @@ func (c *PolicyCheck) Execute(ctx context.Context, r *http.Request) (context.Con
 		return ctx, err
 	}
 
-	err = c.transform.Transform(newRequest)
-	if err != nil {
-		return nil, err
+	for _, transform := range c.transforms {
+		err = transform.Transform(newRequest)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	resp, err := c.upstream.Do(newRequest)

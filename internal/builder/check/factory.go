@@ -39,6 +39,45 @@ import (
 // 	return c, nil
 // }
 
+type PolicyFactory struct {
+	transformBuilder TransformBuilder
+	clientBuilder    ClientBuilder
+	storeBuilder     StoreBuilder
+}
+
+func NewPolicyFactory(t TransformBuilder, c ClientBuilder, s StoreBuilder) *PolicyFactory {
+	return &PolicyFactory{
+		transformBuilder: t,
+		clientBuilder:    c,
+		storeBuilder:     s,
+	}
+}
+
+func (f *PolicyFactory) Create(raw yaml.Node) (pipeline.Checker, error) {
+
+	var cfg config.PolicyCheck
+	if err := raw.Decode(&cfg); err != nil {
+		return nil, fmt.Errorf("new header required check factory: %w", err)
+	}
+
+	t, err := f.transformBuilder.BuildMany(cfg.Transform)
+	if err != nil {
+		return nil, fmt.Errorf("create policy check: %w", err)
+	}
+
+	c, err := f.clientBuilder.Build(cfg.Upstream)
+	if err != nil {
+		return nil, fmt.Errorf("create policy check: %w", err)
+	}
+
+	s, err := f.storeBuilder.Build(cfg.Store)
+	if err != nil {
+		return nil, fmt.Errorf("create policy check: %w", err)
+	}
+
+	return check.NewPolicyCheck(t, c, s), nil
+}
+
 type HeaderRequiredFactory struct {
 	render renderer.Renderer
 }

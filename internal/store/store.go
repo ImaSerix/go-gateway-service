@@ -20,9 +20,9 @@ func NewStore(template map[string]string, render renderer.Render) *Store {
 	}
 }
 
-func (s *Store) Save(ctx context.Context, req *http.Request) (context.Context, error) {
+func (s *Store) Save(ctx context.Context, res *http.Response) (context.Context, error) {
 
-	if req == nil {
+	if res == nil {
 		return ctx, ErrNilRequest
 	}
 

@@ -1,14 +1,12 @@
 package client
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/ImaSerix/go-gateway-service/internal/client"
 	"github.com/ImaSerix/go-gateway-service/internal/config"
 	"github.com/ImaSerix/go-gateway-service/internal/proxy"
 	"github.com/ImaSerix/go-gateway-service/internal/renderer"
-	"gopkg.in/yaml.v3"
 )
 
 type Builder struct {
@@ -23,12 +21,7 @@ func NewBuilder(c *http.Client, render renderer.Renderer) *Builder {
 	}
 }
 
-func (b *Builder) Build(raw yaml.Node) (*client.Upstream, error) {
-
-	var cfg config.Upstream
-	if err := raw.Decode(&cfg); err != nil {
-		return nil, fmt.Errorf("build upstream client: %w", err)
-	}
+func (b *Builder) Build(cfg config.Upstream) (*client.Upstream, error) {
 
 	u, err := proxy.MakeURL(cfg.Scheme, cfg.Host, cfg.Path)
 	if err != nil {

@@ -22,8 +22,9 @@ func RegisterMiddlewares(registy *middleware.MiddlewareRegistry) {
 	registy.Register(types.Inject, middleware.NewInjectFactory())
 }
 
-func RegisterChecks(registry *check.CheckRegistry, render renderer.Renderer, client *http.Client) {
+func RegisterChecks(registry *check.CheckRegistry, render renderer.Renderer, client *http.Client, t check.TransformBuilder, c check.ClientBuilder, s check.StoreBuilder) {
 	// registry.Register(types.Auth, check.NewAuthFactory(client))
+	registry.Register(types.Policy, check.NewPolicyFactory(t, c, s))
 	registry.Register(types.HeaderRequired, check.NewHeaderRequiredFactory(render))
 	registry.Register(types.IPWhiteList, check.NewIPWhiteListFactory(render))
 	registry.Register(types.QueryRequired, check.NewQueryRequiredFactory(render))
