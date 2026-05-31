@@ -1,18 +1,18 @@
 # Checks
 
-Check выполняется после route middleware и до route transforms/proxy. Он может пропустить запрос дальше или вернуть ошибку.
+A check runs after route middleware and before route transforms/proxying. It can either allow the request to continue or return an error.
 
-Актуальные checks:
+Supported checks:
 - `policy`
 - `header_required`
 - `ip_whitelist`
 - `query_required`
 
-`auth`, `inject`, `rate_limit` и `timeout` как checks больше не актуальны. `auth` заменен на более общий `policy`, `inject` живет как middleware, а rate limit/timeout живут как middleware.
+`auth`, `inject`, `rate_limit`, and `timeout` are no longer supported as checks. `auth` was replaced by the more general `policy` check, `inject` exists as middleware, and rate limit/timeout behavior also lives in middleware.
 
 ## policy
 
-`policy` делает внутренний HTTP-запрос, проверяет status code и при успехе может сохранить данные из response в context.
+`policy` performs an internal HTTP request, validates the response status code, and can store response values in context on success.
 
 ```yaml
 checks:
@@ -32,15 +32,15 @@ checks:
         user_id: "{body:user_id}"
 ```
 
-Store внутри `policy` работает только с response:
-- `{header:key}` читает response header.
-- `{body:key}` читает поле верхнего уровня JSON body.
+Store inside `policy` works only with the response:
+- `{header:key}` reads a response header.
+- `{body:key}` reads a top-level JSON body field.
 
-Сложные JSON-пути вроде `{body:user.id}` пока не поддерживаются.
+Complex JSON paths such as `{body:user.id}` are not supported yet.
 
 ## header_required
 
-Проверяет наличие headers во входящем запросе.
+Checks that required headers are present in the incoming request.
 
 ```yaml
 checks:
@@ -53,7 +53,7 @@ checks:
 
 ## ip_whitelist
 
-Проверяет IP из `RemoteAddr` без порта.
+Checks the IP from `RemoteAddr` without the port.
 
 ```yaml
 checks:
@@ -65,7 +65,7 @@ checks:
 
 ## query_required
 
-Проверяет наличие query-параметров.
+Checks that required query parameters are present.
 
 ```yaml
 checks:

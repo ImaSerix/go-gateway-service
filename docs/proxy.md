@@ -1,5 +1,5 @@
-# Описание Proxy
+# Proxy
 
-Краткое описание работы слоя proxy.
+The proxy layer is based on [`httputil.ReverseProxy`](https://pkg.go.dev/net/http/httputil#ReverseProxy) with a custom `Rewrite` function.
 
-В проекте за основу взят [ReverseProxy](https://pkg.go.dev/net/http/httputil#ReverseProxy) из пакета [httputil](https://pkg.go.dev/net/http/httputil). С кастомным `Rewrite` свойством. 
+The route `upstream` config defines the target URL and method. The upstream path can contain request templates such as `{route:id}` or `{query:locale}`.

@@ -1,16 +1,14 @@
-# Описание Transformer
+# Transformer
 
-Описание Transformer, как слоя в жизненном цикле запроса.
+A transformer is a route-level layer that modifies the incoming request before proxying. It can add or replace headers, query parameters, and JSON body fields.
 
-## Необходимость и ответсвенность
-Transformer это слой, который занимается преобразовыванием начального запроса (в пределах одного роута), а именно добавлением хэдеров, GET параметров и полей в Body.
+It is the last route-specific step before the proxy layer.
 
-Фактически это самый последний слой перед самим проксированием запроса.
-
-## На данный момент существуют такие типы
+## Supported Types
 
 ### header
-Transformer, который преобразует headers начального запроса.
+
+Transforms request headers.
 
 ```yaml
 transforms:
@@ -18,10 +16,11 @@ transforms:
     X-User-ID: "{route:id}"
 ```
 
-Перезаписывает значение, находящееся в header. 
+Existing header values are overwritten.
 
 ### body_fields
-Transformer, который преобразует содержимое body.
+
+Transforms the request body.
 
 ```yaml
 transforms:
@@ -30,14 +29,15 @@ transforms:
       id: "{route:id}"
 ```
 
-Поддерживает вложенные объекты, если такой вложенности в оригинальном Body не было, создаст её.
+Nested objects are supported. If the original body does not contain the nested object, it will be created.
 
-Перезаписывает значение.
+Existing field values are overwritten.
 
-Не поддерживает списки.
+Arrays are not supported yet.
 
 ### query_params
-Transformer, который добавляет/заменяет GET query параметры. 
+
+Adds or replaces query parameters.
 
 ```yaml
 transforms:
@@ -45,4 +45,4 @@ transforms:
     locale: "{query:locale}"
 ```
 
-Перезаписывает query параметр, если такой изначально был.
+Existing query parameter values are overwritten.

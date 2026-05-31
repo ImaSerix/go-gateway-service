@@ -1,6 +1,6 @@
-# Конфигурация
+# Configuration
 
-Файл `config.yaml` состоит из `server` и `routes`.
+The `config.yaml` file contains `server` and `routes`.
 
 ```yaml
 server:
@@ -17,7 +17,7 @@ server:
     - type: logging
 ```
 
-`server.middlewares` - глобальные middleware, применяются ко всем маршрутам.
+`server.middlewares` defines global middleware applied to every route.
 
 ## Route
 
@@ -31,13 +31,13 @@ routes:
     upstream: {}
 ```
 
-Поля:
-- `path` - входящий путь. Может содержать chi-параметры, например `/users/{id}`.
-- `method` - входящий HTTP-метод.
-- `middlewares` - middleware только для этого route.
-- `checks` - проверки перед transform/proxy.
-- `transforms` - изменения запроса перед proxy.
-- `upstream` - целевой сервис.
+Fields:
+- `path` - incoming route path. It can contain chi parameters, for example `/users/{id}`.
+- `method` - incoming HTTP method.
+- `middlewares` - middleware applied only to this route.
+- `checks` - validations executed before transforms and proxying.
+- `transforms` - request modifications applied before proxying.
+- `upstream` - target service configuration.
 
 ## Upstream
 
@@ -49,31 +49,31 @@ upstream:
   method: GET
 ```
 
-Поля:
-- `scheme` - `http`, `https` или `ws`.
-- `host` - host без scheme.
-- `path` - путь upstream, может содержать request-шаблоны.
-- `method` - метод upstream. Для route upstream при пустом значении берется `route.method`.
+Fields:
+- `scheme` - `http`, `https`, or `ws`.
+- `host` - host without scheme.
+- `path` - upstream path. It can contain request templates.
+- `method` - upstream method. For route upstreams, an empty value falls back to `route.method`.
 
 ## Resolver
 
-Шаблон: `{source:key}`.
+Template format: `{source:key}`.
 
-Для request-renderer доступны:
+Available sources for the request renderer:
 - `{context:key}`
 - `{route:key}`
 - `{query:key}`
 - `{header:key}`
 
-Для response-renderer в `store` доступны только:
+Available sources for the response renderer in `store`:
 - `{header:key}`
 - `{body:key}`
 
-`{body:key}` читает только поле верхнего уровня JSON-объекта response body. Вложенные пути и массивы пока не поддерживаются.
+`{body:key}` reads only a top-level field from a JSON object in the response body. Nested paths and arrays are not supported yet.
 
 ## Checks
 
-Актуальные checks соответствуют регистрации в `internal/builder/bootstrap.go`: `policy`, `header_required`, `ip_whitelist`, `query_required`.
+Supported checks match the registrations in `internal/builder/bootstrap.go`: `policy`, `header_required`, `ip_whitelist`, and `query_required`.
 
 ### policy
 
@@ -97,7 +97,7 @@ checks:
         user_id: "{body:user_id}"
 ```
 
-`policy` делает внутренний запрос в `upstream`, применяя к нему `transform`, сравнивает response status с `expected_status`, а затем сохраняет данные через `store`.
+`policy` performs an internal request to `upstream`, applies `transform` to that request, compares the response status with `expected_status`, and then stores response values through `store`.
 
 ### header_required
 
@@ -137,7 +137,7 @@ store:
   user_id: "{body:user_id}"
 ```
 
-Store работает с `http.Response`, а не с входящим `http.Request`. Поэтому он уместен только в checks или middleware, которые делают внутренний запрос и получают response.
+Store works with `http.Response`, not with the incoming `http.Request`. This makes it suitable only for checks or middleware that perform an internal request and receive a response.
 
 ## Transforms
 
@@ -152,10 +152,10 @@ transforms:
       id: "{route:id}"
 ```
 
-Типы:
-- `header` - выставляет headers.
-- `query_params` - выставляет query-параметры.
-- `body_fields` - мержит поля в JSON body. Сейчас рекурсивно поддерживаются объекты, но не массивы.
+Types:
+- `header` - sets request headers.
+- `query_params` - sets query parameters.
+- `body_fields` - merges fields into a JSON body. Objects are supported recursively, but arrays are not supported yet.
 
 ## Middleware
 
@@ -172,9 +172,9 @@ middlewares:
           - Authorization
 ```
 
-Актуальные middleware: `cors`, `recovery`, `rate_limit`, `logging`, `request_id`, `real_ip`, `timeout`, `metric`, `inject`.
+Supported middleware: `cors`, `recovery`, `rate_limit`, `logging`, `request_id`, `real_ip`, `timeout`, `metric`, and `inject`.
 
-Короткие конфиги:
+Short config examples:
 
 ```yaml
 - type: rate_limit
@@ -193,4 +193,4 @@ middlewares:
       version: v1
 ```
 
-`recovery`, `logging`, `request_id`, `real_ip` и `metric` не требуют config.
+`recovery`, `logging`, `request_id`, `real_ip`, and `metric` do not require config.

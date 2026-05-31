@@ -1,8 +1,8 @@
 # Middleware
 
-Middleware может быть глобальным (`server.middlewares`) или локальным (`routes[].middlewares`). Локальные middleware выполняются после роутинга и до checks.
+Middleware can be global (`server.middlewares`) or local (`routes[].middlewares`). Local middleware runs after routing and before checks.
 
-Актуальные middleware:
+Supported middleware:
 - `cors`
 - `recovery`
 - `rate_limit`
@@ -30,7 +30,7 @@ middlewares:
           - Authorization
 ```
 
-`allowed.origin` обязателен. `method` и `header` можно оставить пустыми, но тогда CORS-ответ будет без этих разрешений.
+`allowed.origin` is required. `method` and `header` can be empty, but the CORS response will not include those permissions.
 
 ## recovery
 
@@ -39,7 +39,7 @@ middlewares:
   - type: recovery
 ```
 
-Перехватывает panic и возвращает HTTP 500.
+Recovers from panics and returns HTTP 500.
 
 ## rate_limit
 
@@ -51,7 +51,7 @@ middlewares:
       window: 1m
 ```
 
-Ограничивает количество запросов за окно `window`.
+Limits the number of requests within the configured `window`.
 
 ## logging
 
@@ -60,7 +60,7 @@ middlewares:
   - type: logging
 ```
 
-Логирует базовую информацию по запросу.
+Logs basic request information.
 
 ## request_id
 
@@ -69,7 +69,7 @@ middlewares:
   - type: request_id
 ```
 
-Добавляет request id в context/headers.
+Adds a request id to context/headers.
 
 ## real_ip
 
@@ -78,7 +78,7 @@ middlewares:
   - type: real_ip
 ```
 
-Определяет клиентский IP по proxy headers, если они есть.
+Detects the client IP from proxy headers when they are present.
 
 ## timeout
 
@@ -89,7 +89,7 @@ middlewares:
       duration: 2s
 ```
 
-Ограничивает время обработки запроса.
+Limits request processing time.
 
 ## metric
 
@@ -98,7 +98,7 @@ middlewares:
   - type: metric
 ```
 
-Собирает простые метрики запросов.
+Collects simple request metrics.
 
 ## inject
 
@@ -111,4 +111,4 @@ middlewares:
         version: v1
 ```
 
-Добавляет литеральные значения в `request.Context()`. Сейчас этот middleware не делает внутренний запрос и не использует Store.
+Adds literal values to `request.Context()`. This middleware currently does not perform an internal request and does not use Store.

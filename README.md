@@ -1,24 +1,24 @@
 # go-gateway-service
 
-Учебный API Gateway на Go, который регистрирует маршруты из YAML-конфига, выполняет middleware и checks, трансформирует запрос и проксирует его в upstream.
+A learning API Gateway in Go that registers routes from YAML config, runs middleware and checks, transforms requests, and proxies them to upstream services.
 
-Подробные разделы лежат в `./docs`:
-- [config.md](./docs/config.md) - полный формат `config.yaml`.
-- [check.md](./docs/check.md) - актуальные checks и их ответственность.
-- [middleware.md](./docs/middleware.md) - актуальные middleware.
-- [transformer.md](./docs/transformer.md) - трансформации запроса.
-- [proxy.md](./docs/proxy.md) - слой проксирования.
-- [request-flow.md](./docs/request-flow.md) - порядок выполнения запроса.
+More detailed documentation lives in `./docs`:
+- [config.md](./docs/config.md) - full `config.yaml` format.
+- [check.md](./docs/check.md) - supported checks and their responsibilities.
+- [middleware.md](./docs/middleware.md) - supported middleware.
+- [transformer.md](./docs/transformer.md) - request transforms.
+- [proxy.md](./docs/proxy.md) - proxy layer.
+- [request-flow.md](./docs/request-flow.md) - request execution order.
 
-## Быстрый старт
+## Quick Start
 
 ```bash
 go run ./cmd/server -config ./config.yaml
 ```
 
-Сервер читает `server.middlewares` и `routes`, после чего поднимает HTTP-handler на `:8080`.
+The server reads `server.middlewares` and `routes`, then starts an HTTP handler on `:8080`.
 
-## Кратко о конфиге
+## Config Overview
 
 ```yaml
 server:
@@ -60,35 +60,35 @@ routes:
       method: GET
 ```
 
-## Актуальные checks
+## Supported Checks
 
-Сейчас зарегистрированы только:
-- `policy` - делает внутренний HTTP-запрос, проверяет статус и может сохранить данные из response в context.
-- `header_required` - требует наличие headers.
-- `ip_whitelist` - пропускает только разрешенные IP.
-- `query_required` - требует наличие query-параметров.
+Currently registered checks:
+- `policy` - performs an internal HTTP request, validates the response status, and can store response values in context.
+- `header_required` - requires incoming request headers.
+- `ip_whitelist` - allows only configured IP addresses.
+- `query_required` - requires incoming query parameters.
 
-Старый `auth` check заменен на `policy` и не считается актуальным.
+The old `auth` check has been replaced by `policy` and is no longer supported.
 
 ## Resolver
 
-Шаблоны пишутся в формате `{source:key}`.
+Templates use the `{source:key}` format.
 
-Request-renderer используется в proxy, client и transformers:
-- `{context:key}` - значение из `request.Context()`.
-- `{route:key}` - параметр роутинга chi.
-- `{query:key}` - query-параметр входящего запроса.
-- `{header:key}` - header входящего запроса.
+The request renderer is used by proxy, client, and transformers:
+- `{context:key}` - value from `request.Context()`.
+- `{route:key}` - chi route parameter.
+- `{query:key}` - incoming query parameter.
+- `{header:key}` - incoming request header.
 
-Response-renderer используется только в `Store`, то есть только там, где код уже сделал внутренний запрос и получил `http.Response`.
-- `{header:key}` - header response.
-- `{body:key}` - поле верхнего уровня JSON body response.
+The response renderer is used only by `Store`, which means only code that already made an internal request and received an `http.Response` can use it:
+- `{header:key}` - response header.
+- `{body:key}` - top-level JSON body field from the response.
 
-Ограничение Store намеренное: `body` сейчас читает только верхний уровень JSON-объекта. Вложенные пути, массивы и сложные выражения пока не поддерживаются.
+The Store limitation is intentional: `body` currently reads only top-level fields from a JSON object. Nested paths, arrays, and complex expressions are not supported yet.
 
 ## Store
 
-`Store` сохраняет пары `contextKey: template` в `request.Context()` после внутреннего response. Практически это нужно для checks или middleware, которые сами вызывают внешний сервис и хотят передать результат дальше по цепочке. Текущий встроенный `inject` middleware только кладет литеральные значения в context и не использует Store.
+`Store` saves `contextKey: template` pairs into `request.Context()` after an internal response is available. In practice, this is useful for checks or middleware that call an external service and need to pass its response data further down the request chain. The built-in `inject` middleware only stores literal values in context and does not use Store.
 
 ```yaml
 store:
@@ -96,4 +96,4 @@ store:
   user_id: "{body:user_id}"
 ```
 
-После `policy` эти значения доступны как `{context:token}` и `{context:user_id}` в последующих transforms.
+After `policy` runs, these values are available to later transforms as `{context:token}` and `{context:user_id}`.

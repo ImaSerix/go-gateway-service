@@ -1,10 +1,10 @@
-# Порядок выполнения запроса
+# Request Flow
 
-1. Глобальные middleware из `server.middlewares`.
-2. Роутинг по `routes[].path` и `routes[].method`.
-3. Локальные middleware из `routes[].middlewares`.
-4. Checks из `routes[].checks`.
-5. Transforms из `routes[].transforms`.
-6. Proxy в `routes[].upstream`.
+1. Global middleware from `server.middlewares`.
+2. Routing by `routes[].path` and `routes[].method`.
+3. Local middleware from `routes[].middlewares`.
+4. Checks from `routes[].checks`.
+5. Transforms from `routes[].transforms`.
+6. Proxying to `routes[].upstream`.
 
-`policy` check внутри шага checks может выполнить отдельный внутренний запрос. Только после такого response имеет смысл использовать `store`, потому что Store читает именно `http.Response`, а не входящий `http.Request`.
+A `policy` check can perform a separate internal request during the checks step. `store` only makes sense after such a response exists, because Store reads `http.Response`, not the incoming `http.Request`.

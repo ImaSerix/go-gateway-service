@@ -1,24 +1,31 @@
-# Использование шаблонов в конфигурационном файле
+# Templates
 
-Эта документация описывает поддержку шаблонов в конфигурационном файле.
+The configuration supports templates in the `{source:key}` format.
 
-## Шаблоны
-Конфигурация поддерживает шаблоны следующего формата `{source:key}`.
+Templates are resolved only in places that explicitly use a renderer, such as upstream URLs, transforms, and `policy.store`. In other places they are treated as regular strings.
 
-Шаблоны разрешенны только в описании `Upstream`, `Transform`, `Check`, в других местах они будут игнорироваться (восприниматься как обычная строка).
+## Sources
 
-### Source
-Источник, где искать нужные данные по ключу
+`source` defines where the resolver should look for the value.
 
-Разрешённые:
-- `context`: в контексте реквеста `r.Context()`
-- `route`: в шаблонах роутинга `chi.URLParam()`
-- `query`: в query параметрах, фактически тоже в контесте
-- `header`: в header запроса
+Request renderer sources:
+- `context` - values from `r.Context()`.
+- `route` - chi route parameters.
+- `query` - query parameters.
+- `header` - request headers.
 
-### Key
-Является строкой. Если определённого ключа нет в искаемом источнике, будет ошибка.
+Response renderer sources for Store:
+- `header` - response headers.
+- `body` - top-level JSON body fields.
 
-### Пример
+## Key
 
-В 
+`key` is a string. If the key does not exist in the selected source, rendering returns an error.
+
+## Example
+
+```yaml
+transforms:
+  header:
+    X-User-ID: "{route:id}"
+```
