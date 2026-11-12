@@ -6,6 +6,7 @@ import (
 	"log"
 	"log/slog"
 	"net/http"
+	"os"
 
 	"github.com/ImaSerix/go-gateway-service/internal/builder"
 	"github.com/ImaSerix/go-gateway-service/internal/builder/check"
@@ -30,8 +31,8 @@ func main() {
 
 	cfg, err := config.LoadConfig(*configPath)
 	if err != nil {
-		fmt.Println(err)
-		return
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
 	}
 
 	client := http.DefaultClient
@@ -63,8 +64,8 @@ func main() {
 	h, err := handlerBuilder.Build(cfg)
 	if err != nil {
 		slog.Error("failed to build handler", "err", err)
-		return
+		os.Exit(1)
 	}
 
-	log.Print(http.ListenAndServe(":8080", h))
+	log.Fatal(http.ListenAndServe(":8080", h))
 }

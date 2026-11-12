@@ -31,7 +31,7 @@ docker run --rm -p 8080:8080 \
   go-gateway-service
 ```
 
-If the file is not mounted, the server prints the load error (`loadConfig: open /etc/gateway/config.yaml: no such file or directory`) to stdout and exits. At present the exit code is `0` even on this error (same for a handler build error and a `ListenAndServe` failure), so do not rely on a non-zero exit code or on `restart: on-failure`; this is to be fixed separately. A different path can be passed as arguments: `docker run ... go-gateway-service -config /path/to/config.yaml`.
+If the file is not mounted, the server prints the load error (`loadConfig: open /etc/gateway/config.yaml: no such file or directory`) to stderr and exits with code `1`; a handler build error and a `ListenAndServe` failure also exit with code `1`, so `restart: on-failure` works. A different path can be passed as arguments: `docker run ... go-gateway-service -config /path/to/config.yaml`.
 
 ## Config Overview
 
