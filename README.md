@@ -18,6 +18,21 @@ go run ./cmd/server -config ./config.yaml
 
 The server reads `server.middlewares` and `routes`, then starts an HTTP handler on `:8080`.
 
+## Docker
+
+The `Dockerfile` builds a static binary in `golang:1.25.14-alpine3.24` and runs it in `alpine:3.24.4` as the unprivileged `nobody` user. The service has no database and no migrations.
+
+The image contains **no route configuration**: it expects the config file at `/etc/gateway/config.yaml`, mounted at run time. Routes for the social network live in the Social repository; this repository only keeps the example `config.yaml`. There are no environment variables and no secrets; everything is set in the config file. The server listens on port `8080`.
+
+```bash
+docker build -t go-gateway-service .
+docker run --rm -p 8080:8080 \
+  -v "$(pwd)/config.yaml:/etc/gateway/config.yaml:ro" \
+  go-gateway-service
+```
+
+If the file is not mounted, the server prints the load error (`open /etc/gateway/config.yaml: no such file or directory`) and exits. A different path can be passed as arguments: `docker run ... go-gateway-service -config /path/to/config.yaml`.
+
 ## Config Overview
 
 ```yaml

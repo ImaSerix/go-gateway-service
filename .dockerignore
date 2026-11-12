@@ -1,0 +1,20 @@
+# VCS and local tooling
+.git
+.gitattributes
+.agents
+.codex
+.idea
+.vscode
+*.swp
+
+# Secrets and local environment
+.env
+.env.*
+*.pem
+*.key
+
+# Not needed for the build
+Dockerfile
+.dockerignore
+docs
+*.md
