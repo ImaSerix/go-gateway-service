@@ -15,7 +15,8 @@ COPY --from=build /out/gateway /usr/local/bin/gateway
 
 # The image contains no route configuration (D-17): mount the config file
 # at /etc/gateway/config.yaml (read-only). The server listens on :8080.
-USER nobody
+RUN adduser -D -H -s /sbin/nologin gateway
+USER gateway
 EXPOSE 8080
 ENTRYPOINT ["/usr/local/bin/gateway"]
 CMD ["-config", "/etc/gateway/config.yaml"]

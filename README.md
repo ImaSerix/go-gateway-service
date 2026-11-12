@@ -20,9 +20,9 @@ The server reads `server.middlewares` and `routes`, then starts an HTTP handler 
 
 ## Docker
 
-The `Dockerfile` builds a static binary in `golang:1.25.14-alpine3.24` and runs it in `alpine:3.24.4` as the unprivileged `nobody` user. The service has no database and no migrations.
+The `Dockerfile` builds a static binary in `golang:1.25.14-alpine3.24` and runs it in `alpine:3.24.4` as the unprivileged `gateway` user (not root). The service has no database and no migrations.
 
-The image contains **no route configuration**: it expects the config file at `/etc/gateway/config.yaml`, mounted at run time. Routes for the social network live in the Social repository; this repository only keeps the example `config.yaml`. There are no environment variables and no secrets; everything is set in the config file. The server listens on port `8080`.
+The image contains **no route configuration**: it expects the config file at `/etc/gateway/config.yaml`, mounted at run time. Routes for the social network live in the Social repository; this repository only keeps the example `config.yaml`. There are no environment variables and no secrets; everything is set in the config file. The server listens on port `8080`. The mounted config file must be readable by the `gateway` user (for example mode `644`); otherwise the server cannot load it.
 
 ```bash
 docker build -t go-gateway-service .
@@ -31,7 +31,7 @@ docker run --rm -p 8080:8080 \
   go-gateway-service
 ```
 
-If the file is not mounted, the server prints the load error (`open /etc/gateway/config.yaml: no such file or directory`) and exits. A different path can be passed as arguments: `docker run ... go-gateway-service -config /path/to/config.yaml`.
+If the file is not mounted, the server prints the load error (`loadConfig: open /etc/gateway/config.yaml: no such file or directory`) to stdout and exits. At present the exit code is `0` even on this error (same for a handler build error and a `ListenAndServe` failure), so do not rely on a non-zero exit code or on `restart: on-failure`; this is to be fixed separately. A different path can be passed as arguments: `docker run ... go-gateway-service -config /path/to/config.yaml`.
 
 ## Config Overview
 
