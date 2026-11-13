@@ -1,6 +1,7 @@
 package builder_test
 
 import (
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -59,30 +60,7 @@ func TestStack_PolicyStoreTransformProxy(t *testing.T) {
 	transport := &stackRoundTripper{}
 	httpClient := &http.Client{Transport: transport}
 
-	checkRegistry := check.NewCheckRegistry()
-	middlewareRegistry := middleware.NewMiddlewareRegistry()
-	transformerRegistry := transformer.NewTransformerRegistry()
-
-	requestRender := render.NewBuilder(resolverbuilder.NewMultiResolverBuilder().Build()).Build()
-	responseRender := renderer.NewResponseRender(resolverpkg.NewResponseMultiResolver())
-
-	transformerBuilder := transformer.NewBuilder(transformerRegistry)
-	clientBuilder := clientbuilder.NewBuilder(httpClient, requestRender)
-	storeBuilder := storebuilder.NewBuilder(responseRender)
-
-	builder.RegisterChecks(checkRegistry, transformerBuilder, clientBuilder, storeBuilder)
-	builder.RegisterTransformers(transformerRegistry, requestRender)
-	builder.RegisterMiddlewares(middlewareRegistry)
-
-	hb := handler.NewBuilder(
-		middleware.NewBuilder(middlewareRegistry),
-		endpoint.NewBuilder(
-			check.NewBuilder(checkRegistry),
-			transformerBuilder,
-			middleware.NewBuilder(middlewareRegistry),
-			proxy.NewBuilder(httpClient, requestRender),
-		),
-	)
+	hb := newStackHandlerBuilder(httpClient)
 
 	rawPolicyConfig := mustYAML(t, map[string]any{
 		"transform": map[string]any{
@@ -142,6 +120,33 @@ func TestStack_PolicyStoreTransformProxy(t *testing.T) {
 	}
 }
 
+func newStackHandlerBuilder(httpClient *http.Client) *handler.Builder {
+	checkRegistry := check.NewCheckRegistry()
+	middlewareRegistry := middleware.NewMiddlewareRegistry()
+	transformerRegistry := transformer.NewTransformerRegistry()
+
+	requestRender := render.NewBuilder(resolverbuilder.NewMultiResolverBuilder().Build()).Build()
+	responseRender := renderer.NewResponseRender(resolverpkg.NewResponseMultiResolver())
+
+	transformerBuilder := transformer.NewBuilder(transformerRegistry)
+	clientBuilder := clientbuilder.NewBuilder(httpClient, requestRender)
+	storeBuilder := storebuilder.NewBuilder(responseRender)
+
+	builder.RegisterChecks(checkRegistry, transformerBuilder, clientBuilder, storeBuilder)
+	builder.RegisterTransformers(transformerRegistry, requestRender)
+	builder.RegisterMiddlewares(middlewareRegistry)
+
+	return handler.NewBuilder(
+		middleware.NewBuilder(middlewareRegistry),
+		endpoint.NewBuilder(
+			check.NewBuilder(checkRegistry),
+			transformerBuilder,
+			middleware.NewBuilder(middlewareRegistry),
+			proxy.NewBuilder(httpClient, requestRender),
+		),
+	)
+}
+
 func mustYAML(t *testing.T, v any) yaml.Node {
 	t.Helper()
 
@@ -151,4 +156,213 @@ func mustYAML(t *testing.T, v any) yaml.Node {
 	}
 
 	return node
+}
+
+type authStackRoundTripper struct {
+	authErr error
+
+	authCalls   int
+	authMethod  string
+	authPath    string
+	authBody    string
+	authHeader  string
+	apiCalls    int
+	apiPath     string
+	apiQuery    string
+	apiUserID   string
+	apiBody     string
+	apiAuthSeen string
+}
+
+func (rt *authStackRoundTripper) RoundTrip(r *http.Request) (*http.Response, error) {
+	body := ""
+	if r.Body != nil {
+		raw, _ := io.ReadAll(r.Body)
+		body = string(raw)
+	}
+
+	switch r.URL.Host {
+	case "auth.local":
+		rt.authCalls++
+		rt.authMethod = r.Method
+		rt.authPath = r.URL.Path
+		rt.authBody = body
+		rt.authHeader = r.Header.Get("Authorization")
+		if rt.authErr != nil {
+			return nil, rt.authErr
+		}
+		switch rt.authHeader {
+		case "Bearer good":
+			return response(http.StatusOK, `{"id":"user-1","username":"alice","roles":["user"]}`), nil
+		case "Bearer broken-auth":
+			return response(http.StatusInternalServerError, `internal error`), nil
+		default:
+			return response(http.StatusUnauthorized, `invalid token`), nil
+		}
+	case "api.local":
+		rt.apiCalls++
+		rt.apiPath = r.URL.Path
+		rt.apiQuery = r.URL.RawQuery
+		rt.apiUserID = strings.Join(r.Header.Values("X-User-ID"), ",")
+		rt.apiBody = body
+		rt.apiAuthSeen = r.Header.Get("Authorization")
+		return response(http.StatusCreated, `{"ok":true}`), nil
+	default:
+		return response(http.StatusNotFound, `{}`), nil
+	}
+}
+
+// Token check through a policy request without the client body: the verified
+// user id replaces X-User-ID from the client, path, query and body reach the service.
+func TestStack_TokenCheckSetsUserID(t *testing.T) {
+	tests := []struct {
+		name    string
+		method  string
+		target  string
+		body    string
+		token   string
+		authErr error
+
+		expCode    int
+		expErrCode string
+		expAPIPath string
+		expQuery   string
+	}{
+		{
+			name:       "GET without body",
+			method:     http.MethodGet,
+			target:     "/chats/7/messages?limit=5&before=10",
+			token:      "Bearer good",
+			expCode:    http.StatusCreated,
+			expAPIPath: "/chats/7/messages",
+			expQuery:   "limit=5&before=10",
+		},
+		{
+			name:       "POST with body",
+			method:     http.MethodPost,
+			target:     "/chats/7/messages",
+			body:       `{"text":"hello"}`,
+			token:      "Bearer good",
+			expCode:    http.StatusCreated,
+			expAPIPath: "/chats/7/messages",
+		},
+		{
+			name:       "no token",
+			method:     http.MethodPost,
+			target:     "/chats/7/messages",
+			body:       `{"text":"hello"}`,
+			expCode:    http.StatusUnauthorized,
+			expErrCode: "unauthorized",
+		},
+		{
+			name:       "invalid token",
+			method:     http.MethodGet,
+			target:     "/chats/7/messages",
+			token:      "Bearer bad",
+			expCode:    http.StatusUnauthorized,
+			expErrCode: "unauthorized",
+		},
+		{
+			name:       "auth answered with unexpected status",
+			method:     http.MethodGet,
+			target:     "/chats/7/messages",
+			token:      "Bearer broken-auth",
+			expCode:    http.StatusServiceUnavailable,
+			expErrCode: "auth_unavailable",
+		},
+		{
+			name:       "auth unreachable",
+			method:     http.MethodGet,
+			target:     "/chats/7/messages",
+			token:      "Bearer good",
+			authErr:    errors.New("dial tcp: connection refused"),
+			expCode:    http.StatusServiceUnavailable,
+			expErrCode: "auth_unavailable",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			transport := &authStackRoundTripper{authErr: test.authErr}
+			hb := newStackHandlerBuilder(&http.Client{Transport: transport})
+
+			h, err := hb.Build(config.Root{
+				Routes: []config.Route{
+					{
+						Path:   "/chats/{chatID}/messages",
+						Method: test.method,
+						Checks: []config.Check{
+							{Type: "policy", Config: mustYAML(t, map[string]any{
+								"upstream": map[string]any{
+									"scheme": "http",
+									"host":   "auth.local",
+									"path":   "/auth/validate",
+									"method": http.MethodPost,
+								},
+								"expected_status": http.StatusOK,
+								"store": map[string]any{
+									"user_id": "{body:id}",
+								},
+							})},
+						},
+						Transforms: config.Transform{
+							"header": mustYAML(t, map[string]any{
+								"X-User-ID": "{context:user_id}",
+							}),
+						},
+						Upstream: config.Upstream{
+							Scheme: "http",
+							Host:   "api.local",
+						},
+					},
+				},
+			})
+			if err != nil {
+				t.Fatalf("expected nil error, got %v", err)
+			}
+
+			req := httptest.NewRequest(test.method, test.target, strings.NewReader(test.body))
+			req.Header.Set("X-User-ID", "forged-user")
+			if test.token != "" {
+				req.Header.Set("Authorization", test.token)
+			}
+			rec := httptest.NewRecorder()
+
+			h.ServeHTTP(rec, req)
+
+			if rec.Code != test.expCode {
+				t.Fatalf("expected status %d, got %d: %s", test.expCode, rec.Code, rec.Body.String())
+			}
+
+			if transport.authCalls != 1 || transport.authMethod != http.MethodPost || transport.authPath != "/auth/validate" {
+				t.Fatalf("expected one POST /auth/validate, got %d calls, %s %s", transport.authCalls, transport.authMethod, transport.authPath)
+			}
+			if transport.authBody != "" {
+				t.Fatalf("expected no client body in auth request, got %q", transport.authBody)
+			}
+			if transport.authHeader != test.token {
+				t.Fatalf("expected Authorization %q in auth request, got %q", test.token, transport.authHeader)
+			}
+
+			if test.expErrCode != "" {
+				if !strings.Contains(rec.Body.String(), `"code":"`+test.expErrCode+`"`) {
+					t.Fatalf("expected error code %s, got %s", test.expErrCode, rec.Body.String())
+				}
+				if transport.apiCalls != 0 {
+					t.Fatal("expected upstream not to be called")
+				}
+				return
+			}
+
+			if transport.apiUserID != "user-1" {
+				t.Fatalf("expected verified X-User-ID, got %q", transport.apiUserID)
+			}
+			if transport.apiPath != test.expAPIPath || transport.apiQuery != test.expQuery {
+				t.Fatalf("expected upstream %s?%s, got %s?%s", test.expAPIPath, test.expQuery, transport.apiPath, transport.apiQuery)
+			}
+			if transport.apiBody != test.body {
+				t.Fatalf("expected upstream body %q, got %q", test.body, transport.apiBody)
+			}
+		})
+	}
 }

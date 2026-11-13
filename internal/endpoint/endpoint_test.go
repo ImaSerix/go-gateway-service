@@ -1,12 +1,16 @@
 package endpoint_test
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strings"
 	"testing"
 
+	"github.com/ImaSerix/go-gateway-service/internal/check"
 	"github.com/ImaSerix/go-gateway-service/internal/endpoint"
 	"github.com/ImaSerix/go-gateway-service/internal/pipeline"
 )
@@ -79,8 +83,9 @@ func TestEndpoint_ServeHTTP(t *testing.T) {
 		transformErr   error
 		middlewarePass bool
 
-		expCode  int
-		expCalls []string
+		expCode    int
+		expErrCode string
+		expCalls   []string
 	}{
 		{
 			name:         "success",
@@ -105,8 +110,9 @@ func TestEndpoint_ServeHTTP(t *testing.T) {
 			reqMethod:    "POST",
 			endpointMeth: "GET",
 
-			expCode:  http.StatusMethodNotAllowed,
-			expCalls: nil,
+			expCode:    http.StatusMethodNotAllowed,
+			expErrCode: "method_not_allowed",
+			expCalls:   nil,
 		},
 		{
 			name:         "middleware failed",
@@ -125,10 +131,75 @@ func TestEndpoint_ServeHTTP(t *testing.T) {
 			reqMethod:    "GET",
 			endpointMeth: "GET",
 
+			checkErr:       check.ErrForbidden,
+			middlewarePass: true,
+
+			expCode:    http.StatusForbidden,
+			expErrCode: "forbidden",
+			expCalls: []string{
+				"middleware-1",
+				"middleware-2",
+				"check-1",
+			},
+		},
+		{
+			name:         "check failed: no header",
+			reqMethod:    "GET",
+			endpointMeth: "GET",
+
+			checkErr:       fmt.Errorf("%w: X-Request-ID", check.ErrNoHeader),
+			middlewarePass: true,
+
+			expCode:    http.StatusForbidden,
+			expErrCode: "forbidden",
+			expCalls: []string{
+				"middleware-1",
+				"middleware-2",
+				"check-1",
+			},
+		},
+		{
+			name:         "check failed: unauthorized",
+			reqMethod:    "GET",
+			endpointMeth: "GET",
+
+			checkErr:       check.ErrUnauthorized,
+			middlewarePass: true,
+
+			expCode:    http.StatusUnauthorized,
+			expErrCode: "unauthorized",
+			expCalls: []string{
+				"middleware-1",
+				"middleware-2",
+				"check-1",
+			},
+		},
+		{
+			name:         "check failed: policy unavailable",
+			reqMethod:    "GET",
+			endpointMeth: "GET",
+
+			checkErr:       fmt.Errorf("%w: dial tcp 10.0.0.1:8080", check.ErrPolicyUnavailable),
+			middlewarePass: true,
+
+			expCode:    http.StatusServiceUnavailable,
+			expErrCode: "auth_unavailable",
+			expCalls: []string{
+				"middleware-1",
+				"middleware-2",
+				"check-1",
+			},
+		},
+		{
+			name:         "check failed: internal error",
+			reqMethod:    "GET",
+			endpointMeth: "GET",
+
 			checkErr:       http.ErrAbortHandler,
 			middlewarePass: true,
 
-			expCode: http.StatusForbidden,
+			expCode:    http.StatusInternalServerError,
+			expErrCode: "internal_error",
 			expCalls: []string{
 				"middleware-1",
 				"middleware-2",
@@ -143,7 +214,8 @@ func TestEndpoint_ServeHTTP(t *testing.T) {
 			transformErr:   http.ErrBodyNotAllowed,
 			middlewarePass: true,
 
-			expCode: http.StatusInternalServerError,
+			expCode:    http.StatusInternalServerError,
+			expErrCode: "internal_error",
 			expCalls: []string{
 				"middleware-1",
 				"middleware-2",
@@ -231,6 +303,25 @@ func TestEndpoint_ServeHTTP(t *testing.T) {
 					test.expCode,
 					w.Code,
 				)
+			}
+
+			if test.expErrCode != "" {
+				var body struct {
+					Code    string `json:"code"`
+					Message string `json:"message"`
+				}
+				if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+					t.Fatalf("expected json error body, got %q", w.Body.String())
+				}
+				if body.Code != test.expErrCode || body.Message == "" {
+					t.Fatalf("expected error code %q with message, got %+v", test.expErrCode, body)
+				}
+				if ct := w.Header().Get("Content-Type"); ct != "application/json" {
+					t.Fatalf("expected Content-Type application/json, got %q", ct)
+				}
+				if strings.Contains(w.Body.String(), "10.0.0.1") {
+					t.Fatalf("internal error text leaked to client: %q", w.Body.String())
+				}
 			}
 
 			if !reflect.DeepEqual(calls, test.expCalls) {

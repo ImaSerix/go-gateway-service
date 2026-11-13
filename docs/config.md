@@ -92,12 +92,13 @@ checks:
         path: /auth/{route:id}
         method: POST
       expected_status: 200
+      forward_body: false
       store:
         token: "{header:X-Token}"
         user_id: "{body:user_id}"
 ```
 
-`policy` performs an internal request to `upstream`, applies `transform` to that request, compares the response status with `expected_status`, and then stores response values through `store`.
+`policy` performs an internal request to `upstream`, applies `transform` to that request, compares the response status with `expected_status`, and then stores response values through `store`. The client body is sent with the internal request only when `forward_body` is `true` (default `false`). Details: [check.md](check.md#policy).
 
 ### header_required
 

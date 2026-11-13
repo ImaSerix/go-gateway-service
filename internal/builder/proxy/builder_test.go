@@ -3,6 +3,8 @@ package proxy_test
 import (
 	"errors"
 	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	proxyBuilder "github.com/ImaSerix/go-gateway-service/internal/builder/proxy"
@@ -71,5 +73,33 @@ func TestProxyBuilder(t *testing.T) {
 			}
 
 		})
+	}
+}
+
+type failingTransport struct{}
+
+func (failingTransport) RoundTrip(*http.Request) (*http.Response, error) {
+	return nil, errors.New("dial tcp 10.0.0.1:8080: connection refused")
+}
+
+func TestProxyBuilder_UpstreamUnavailable(t *testing.T) {
+	b := proxyBuilder.NewBuilder(&http.Client{Transport: failingTransport{}}, &rendererMock{})
+
+	p, err := b.Build(config.Upstream{Host: "nice.host", Scheme: "http", Method: "GET"})
+	if err != nil {
+		t.Fatalf("expected nil error, but got %v", err)
+	}
+
+	w := httptest.NewRecorder()
+	p.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/users", nil))
+
+	if w.Code != http.StatusBadGateway {
+		t.Fatalf("expected status %d, but got %d", http.StatusBadGateway, w.Code)
+	}
+	if !strings.Contains(w.Body.String(), `"code":"upstream_unavailable"`) {
+		t.Fatalf("expected upstream_unavailable code, but got %s", w.Body.String())
+	}
+	if strings.Contains(w.Body.String(), "10.0.0.1") {
+		t.Fatalf("internal error text leaked to client: %s", w.Body.String())
 	}
 }

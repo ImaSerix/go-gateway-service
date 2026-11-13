@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/ImaSerix/go-gateway-service/internal/builder/handler"
@@ -107,4 +108,45 @@ func TestHandlerBuilder_Build_Errors(t *testing.T) {
 			t.Fatal("expected nil handler")
 		}
 	})
+}
+
+func TestHandlerBuilder_Build_RouteErrors(t *testing.T) {
+	endpoint := endpointMock{path: "/v1", method: "GET", handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})}
+
+	b := handler.NewBuilder(&middlewareBuilderMock{}, &endpointBuilderMock{result: []pipeline.Endpoint{endpoint}})
+
+	h, err := b.Build(config.Root{})
+	if err != nil {
+		t.Fatalf("expected nil error, but got %v", err)
+	}
+
+	tests := []struct {
+		name    string
+		method  string
+		path    string
+		expCode int
+		expBody string
+	}{
+		{name: "unknown path", method: http.MethodGet, path: "/internal/users", expCode: http.StatusNotFound, expBody: `"code":"not_found"`},
+		{name: "wrong method", method: http.MethodPost, path: "/v1", expCode: http.StatusMethodNotAllowed, expBody: `"code":"method_not_allowed"`},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			rr := httptest.NewRecorder()
+			h.ServeHTTP(rr, httptest.NewRequest(test.method, test.path, nil))
+
+			if rr.Code != test.expCode {
+				t.Fatalf("expected status %d, but got %d", test.expCode, rr.Code)
+			}
+			if !strings.Contains(rr.Body.String(), test.expBody) {
+				t.Fatalf("expected body with %s, but got %s", test.expBody, rr.Body.String())
+			}
+			if ct := rr.Header().Get("Content-Type"); ct != "application/json" {
+				t.Fatalf("expected Content-Type application/json, but got %q", ct)
+			}
+		})
+	}
 }

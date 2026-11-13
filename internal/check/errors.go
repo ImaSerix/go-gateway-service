@@ -11,6 +11,7 @@ var (
 	ErrInvalidURL            = errors.New("invalid url")
 	ErrEmptyHost             = errors.New("empty host")
 	ErrUnauthorized          = errors.New("unauthorized")
+	ErrPolicyUnavailable     = errors.New("policy unavailable")
 	ErrEmptyURL              = errors.New("empty url")
 	ErrNilClient             = errors.New("nil client")
 	ErrEmptyHeaders          = errors.New("empty headers")

@@ -1,11 +1,13 @@
 package proxy
 
 import (
+	"log/slog"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 
 	"github.com/ImaSerix/go-gateway-service/internal/config"
+	"github.com/ImaSerix/go-gateway-service/internal/httperror"
 	"github.com/ImaSerix/go-gateway-service/internal/pipeline"
 	"github.com/ImaSerix/go-gateway-service/internal/proxy"
 	"github.com/ImaSerix/go-gateway-service/internal/renderer"
@@ -57,6 +59,10 @@ func (rb *ReverseBuilder) Build(cfg config.Upstream) (pipeline.Proxy, error) {
 
 			pr.SetURL(u)
 			pr.Out.Method = string(m)
+		},
+		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
+			slog.Error("upstream request failed", "method", r.Method, "path", r.URL.Path, "err", err)
+			httperror.Write(w, http.StatusBadGateway, httperror.CodeUpstreamUnavailable, "upstream service unavailable")
 		},
 	}
 

@@ -3,6 +3,7 @@ package check
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 
@@ -22,9 +23,10 @@ type PolicyCheck struct {
 	upstream       UpstreamClient
 	store          Store
 	expectedStatus int
+	forwardBody    bool
 }
 
-func NewPolicyCheck(transforms []pipeline.Transformer, upstream UpstreamClient, store Store, expectedStatus int) *PolicyCheck {
+func NewPolicyCheck(transforms []pipeline.Transformer, upstream UpstreamClient, store Store, expectedStatus int, forwardBody bool) *PolicyCheck {
 	if expectedStatus == 0 {
 		expectedStatus = http.StatusOK
 	}
@@ -34,6 +36,7 @@ func NewPolicyCheck(transforms []pipeline.Transformer, upstream UpstreamClient, 
 		upstream:       upstream,
 		store:          store,
 		expectedStatus: expectedStatus,
+		forwardBody:    forwardBody,
 	}
 }
 
@@ -42,9 +45,22 @@ func (c *PolicyCheck) Execute(ctx context.Context, r *http.Request) (context.Con
 		return ctx, ErrNilRequest
 	}
 
-	newRequest, err := cloneRequestWithBody(r, ctx)
-	if err != nil {
-		return ctx, err
+	var newRequest *http.Request
+	var err error
+
+	if c.forwardBody {
+		newRequest, err = cloneRequestWithBody(r, ctx)
+		if err != nil {
+			return ctx, err
+		}
+	} else {
+		// The client body is neither read nor sent to the policy service.
+		newRequest = r.Clone(ctx)
+		newRequest.Body = http.NoBody
+		newRequest.ContentLength = 0
+		newRequest.TransferEncoding = nil
+		newRequest.Header.Del("Content-Length")
+		newRequest.Header.Del("Content-Type")
 	}
 
 	for _, transform := range c.transforms {
@@ -56,12 +72,16 @@ func (c *PolicyCheck) Execute(ctx context.Context, r *http.Request) (context.Con
 
 	resp, err := c.upstream.Do(newRequest)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %v", ErrPolicyUnavailable, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != c.expectedStatus {
-		return ctx, ErrUnauthorized
+		if resp.StatusCode == http.StatusUnauthorized {
+			return ctx, ErrUnauthorized
+		}
+
+		return ctx, fmt.Errorf("%w: status %d", ErrPolicyUnavailable, resp.StatusCode)
 	}
 
 	newCtx, err := c.store.Save(ctx, resp)

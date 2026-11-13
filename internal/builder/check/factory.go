@@ -45,7 +45,7 @@ func (f *PolicyFactory) Create(raw yaml.Node) (pipeline.Checker, error) {
 		return nil, fmt.Errorf("create policy check: %w", err)
 	}
 
-	return check.NewPolicyCheck(t, c, s, cfg.ExpectedStatus), nil
+	return check.NewPolicyCheck(t, c, s, cfg.ExpectedStatus, cfg.ForwardBody), nil
 }
 
 type HeaderRequiredFactory struct{}

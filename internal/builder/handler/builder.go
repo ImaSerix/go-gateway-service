@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/ImaSerix/go-gateway-service/internal/config"
+	"github.com/ImaSerix/go-gateway-service/internal/httperror"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -35,6 +36,13 @@ func (b *Builder) Build(cfg config.Root) (http.Handler, error) {
 	r := chi.NewRouter()
 
 	r.Use(middlewares...)
+
+	r.NotFound(func(w http.ResponseWriter, _ *http.Request) {
+		httperror.Write(w, http.StatusNotFound, httperror.CodeNotFound, "route not found")
+	})
+	r.MethodNotAllowed(func(w http.ResponseWriter, _ *http.Request) {
+		httperror.Write(w, http.StatusMethodNotAllowed, httperror.CodeMethodNotAllowed, "method not allowed")
+	})
 
 	for _, e := range endpoints {
 		r.Method(e.Method(), e.Path(), e.Handler())

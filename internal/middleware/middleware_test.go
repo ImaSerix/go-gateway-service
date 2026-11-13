@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -266,6 +267,9 @@ func TestRecoveryMiddleware(t *testing.T) {
 			if w.Code != test.expCode {
 				t.Fatalf("expected status %d, got %d", test.expCode, w.Code)
 			}
+			if test.expCode == http.StatusInternalServerError && !strings.Contains(w.Body.String(), `"code":"internal_error"`) {
+				t.Fatalf("expected internal_error code, got %s", w.Body.String())
+			}
 		})
 	}
 }
@@ -494,6 +498,9 @@ func TestRateLimitMiddleware_ResetWindow(t *testing.T) {
 	m.ServeHTTP(w2, req)
 	if w2.Code != http.StatusTooManyRequests {
 		t.Fatalf("expected status 429, got %d", w2.Code)
+	}
+	if !strings.Contains(w2.Body.String(), `"code":"too_many_requests"`) {
+		t.Fatalf("expected too_many_requests code, got %s", w2.Body.String())
 	}
 
 	time.Sleep(20 * time.Millisecond)

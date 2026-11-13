@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/ImaSerix/go-gateway-service/internal/ctxkeys"
+	"github.com/ImaSerix/go-gateway-service/internal/httperror"
 	"github.com/ImaSerix/go-gateway-service/internal/pipeline"
 )
 
@@ -67,10 +68,11 @@ func (rl *RateLimit) Middleware() pipeline.Middleware {
 			if count.count >= rl.limit {
 				rl.mu.Unlock()
 
-				http.Error(
+				httperror.Write(
 					w,
-					"too many requests",
 					http.StatusTooManyRequests,
+					httperror.CodeTooManyRequests,
+					"too many requests",
 				)
 				return
 			}

@@ -14,6 +14,8 @@ Supported checks:
 
 `policy` performs an internal HTTP request, validates the response status code, and can store response values in context on success.
 
+The internal request is a copy of the client request (method and URL come from `upstream`, headers are copied, then `transform` is applied). The client body is sent only when `forward_body` is `true`.
+
 ```yaml
 checks:
   - type: policy
@@ -27,10 +29,25 @@ checks:
         path: /auth/{route:id}
         method: POST
       expected_status: 200
+      forward_body: false
       store:
         token: "{header:X-Token}"
         user_id: "{body:user_id}"
 ```
+
+Fields:
+- `expected_status` - status that lets the request through. Defaults to `200`.
+- `forward_body` - whether the client body is sent with the internal request. Defaults to `false`: the internal request has no body and the client body is not read. With `true` the body is read into memory and sent to both the policy service and the upstream.
+
+Outcome for the client:
+
+| Policy service | Client gets |
+| --- | --- |
+| `expected_status` | request continues |
+| `401` | `401`, code `unauthorized` |
+| unreachable, or any other status | `503`, code `auth_unavailable` |
+
+The body of the policy response is never passed to the client. Error format: [request-flow.md](request-flow.md#gateway-errors).
 
 Store inside `policy` works only with the response:
 - `{header:key}` reads a response header.

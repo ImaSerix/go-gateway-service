@@ -6,6 +6,7 @@ type PolicyCheck struct {
 	Transform      Transform `yaml:"transform"`
 	Upstream       Upstream  `yaml:"upstream"`
 	ExpectedStatus int       `yaml:"expected_status"`
+	ForwardBody    bool      `yaml:"forward_body"`
 	Store          Store     `yaml:"store"`
 }
 
