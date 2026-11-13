@@ -5,6 +5,7 @@ type Method string
 const (
 	GET     Method = "GET"
 	POST    Method = "POST"
+	PATCH   Method = "PATCH"
 	INVALID Method = "INVALID"
 )
 
@@ -14,6 +15,8 @@ func NewMethod(m string) (Method, error) {
 		return GET, nil
 	case string(POST):
 		return POST, nil
+	case string(PATCH):
+		return PATCH, nil
 	default:
 		return INVALID, ErrInvalidMethod
 	}

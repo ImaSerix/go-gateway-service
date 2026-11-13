@@ -33,7 +33,7 @@ routes:
 
 Fields:
 - `path` - incoming route path. It can contain chi parameters, for example `/users/{id}`.
-- `method` - incoming HTTP method.
+- `method` - incoming HTTP method: `GET`, `POST` or `PATCH`.
 - `middlewares` - middleware applied only to this route.
 - `checks` - validations executed before transforms and proxying.
 - `transforms` - request modifications applied before proxying.
@@ -52,8 +52,8 @@ upstream:
 Fields:
 - `scheme` - `http`, `https`, or `ws`.
 - `host` - host without scheme.
-- `path` - upstream path. It can contain request templates.
-- `method` - upstream method. For route upstreams, an empty value falls back to `route.method`.
+- `path` - upstream path. It can contain request templates. Leave it empty to pass the incoming path through unchanged: a non-empty value is put in front of the incoming path.
+- `method` - upstream method (`GET`, `POST` or `PATCH` for a route; `GET` or `POST` for a `policy` request). For route upstreams, an empty value falls back to `route.method`.
 
 ## Resolver
 

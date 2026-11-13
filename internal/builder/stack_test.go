@@ -247,6 +247,15 @@ func TestStack_TokenCheckSetsUserID(t *testing.T) {
 			expAPIPath: "/chats/7/messages",
 		},
 		{
+			name:       "PATCH with body",
+			method:     http.MethodPatch,
+			target:     "/chats/7/messages",
+			body:       `{"text":"edited"}`,
+			token:      "Bearer good",
+			expCode:    http.StatusCreated,
+			expAPIPath: "/chats/7/messages",
+		},
+		{
 			name:       "no token",
 			method:     http.MethodPost,
 			target:     "/chats/7/messages",
