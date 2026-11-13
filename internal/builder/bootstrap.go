@@ -18,6 +18,7 @@ func RegisterMiddlewares(registy *middleware.MiddlewareRegistry) {
 	registy.Register(types.RequestID, middleware.NewRequestIDFactory())
 	registy.Register(types.Timeout, middleware.NewTimeoutFactory())
 	registy.Register(types.Inject, middleware.NewInjectFactory())
+	registy.Register(types.StripHeaders, middleware.NewStripHeadersFactory())
 }
 
 func RegisterChecks(registry *check.CheckRegistry, t check.TransformBuilder, c check.ClientBuilder, s check.StoreBuilder) {

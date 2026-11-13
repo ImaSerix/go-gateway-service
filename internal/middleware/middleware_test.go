@@ -578,3 +578,34 @@ func TestInject(t *testing.T) {
 	}
 
 }
+
+func TestStripHeaders(t *testing.T) {
+
+	called := false
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "http://nice.url", nil)
+	r.Header.Set("X-User-ID", "forged")
+	r.Header.Add("x-user-id", "forged-too")
+	r.Header.Set("X-Other", "kept")
+
+	n := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+
+		if v := r.Header.Values("X-User-ID"); len(v) != 0 {
+			t.Fatalf("expected header to be removed, but got %v", v)
+		}
+
+		if v := r.Header.Get("X-Other"); v != "kept" {
+			t.Fatalf("expected other headers to stay, but got %q", v)
+		}
+	})
+
+	m := StripHeaders([]string{"x-user-id", "X-Absent"})
+
+	m(n).ServeHTTP(w, r)
+
+	if !called {
+		t.Fatal("expected next handler to be called, but it is not")
+	}
+}

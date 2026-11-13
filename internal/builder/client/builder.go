@@ -28,10 +28,16 @@ func (b *Builder) Build(cfg config.Upstream) (*client.Upstream, error) {
 		return nil, err
 	}
 
-	m, err := proxy.NewMethod(cfg.Method)
+	m, err := client.NewMethod(cfg.Method)
 	if err != nil {
 		return nil, err
 	}
 
-	return client.NewUpstreamClient(b.client, b.render, u, string(m)), nil
+	// The caller must see the first response of the upstream: redirects are not followed.
+	c := *b.client
+	c.CheckRedirect = func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+
+	return client.NewUpstreamClient(&c, b.render, u, string(m)), nil
 }

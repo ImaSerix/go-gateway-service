@@ -166,6 +166,7 @@ type authStackRoundTripper struct {
 	authPath    string
 	authBody    string
 	authHeader  string
+	authUserID  string
 	apiCalls    int
 	apiPath     string
 	apiQuery    string
@@ -187,11 +188,23 @@ func (rt *authStackRoundTripper) RoundTrip(r *http.Request) (*http.Response, err
 		rt.authMethod = r.Method
 		rt.authPath = r.URL.Path
 		rt.authBody = body
+		if r.URL.Path == "/redirected" {
+			return response(http.StatusOK, `{"id":"user-1"}`), nil
+		}
 		rt.authHeader = r.Header.Get("Authorization")
+		rt.authUserID = strings.Join(r.Header.Values("X-User-ID"), ",")
 		if rt.authErr != nil {
 			return nil, rt.authErr
 		}
 		switch rt.authHeader {
+		case "Bearer redirect":
+			return &http.Response{
+				StatusCode: http.StatusFound,
+				Header:     http.Header{"Location": []string{"/redirected"}},
+				Body:       io.NopCloser(http.NoBody),
+			}, nil
+		case "Bearer no-id":
+			return response(http.StatusOK, `{"username":"alice"}`), nil
 		case "Bearer good":
 			return response(http.StatusOK, `{"id":"user-1","username":"alice","roles":["user"]}`), nil
 		case "Bearer broken-auth":
@@ -280,6 +293,22 @@ func TestStack_TokenCheckSetsUserID(t *testing.T) {
 			expErrCode: "auth_unavailable",
 		},
 		{
+			name:       "auth answered with redirect",
+			method:     http.MethodGet,
+			target:     "/chats/7/messages",
+			token:      "Bearer redirect",
+			expCode:    http.StatusServiceUnavailable,
+			expErrCode: "auth_unavailable",
+		},
+		{
+			name:       "auth answered 200 without id",
+			method:     http.MethodGet,
+			target:     "/chats/7/messages",
+			token:      "Bearer no-id",
+			expCode:    http.StatusServiceUnavailable,
+			expErrCode: "auth_unavailable",
+		},
+		{
 			name:       "auth unreachable",
 			method:     http.MethodGet,
 			target:     "/chats/7/messages",
@@ -296,6 +325,7 @@ func TestStack_TokenCheckSetsUserID(t *testing.T) {
 			hb := newStackHandlerBuilder(&http.Client{Transport: transport})
 
 			h, err := hb.Build(config.Root{
+				Server: stripUserIDServer(t),
 				Routes: []config.Route{
 					{
 						Path:   "/chats/{chatID}/messages",
@@ -352,6 +382,9 @@ func TestStack_TokenCheckSetsUserID(t *testing.T) {
 			if transport.authHeader != test.token {
 				t.Fatalf("expected Authorization %q in auth request, got %q", test.token, transport.authHeader)
 			}
+			if transport.authUserID != "" {
+				t.Fatalf("expected no client X-User-ID in auth request, got %q", transport.authUserID)
+			}
 
 			if test.expErrCode != "" {
 				if !strings.Contains(rec.Body.String(), `"code":"`+test.expErrCode+`"`) {
@@ -373,5 +406,60 @@ func TestStack_TokenCheckSetsUserID(t *testing.T) {
 				t.Fatalf("expected upstream body %q, got %q", test.body, transport.apiBody)
 			}
 		})
+	}
+}
+
+func stripUserIDServer(t *testing.T) config.Server {
+	t.Helper()
+
+	return config.Server{
+		Middlewares: []config.Middleware{
+			{Type: "strip_headers", Config: mustYAML(t, map[string]any{
+				"headers": []string{"X-User-ID"},
+			})},
+		},
+	}
+}
+
+// A route without checks: the header listed in strip_headers does not reach the service.
+func TestStack_StripHeadersOnOpenRoute(t *testing.T) {
+	transport := &authStackRoundTripper{}
+	hb := newStackHandlerBuilder(&http.Client{Transport: transport})
+
+	h, err := hb.Build(config.Root{
+		Server: stripUserIDServer(t),
+		Routes: []config.Route{
+			{
+				Path:   "/auth/login",
+				Method: http.MethodPost,
+				Upstream: config.Upstream{
+					Scheme: "http",
+					Host:   "api.local",
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/auth/login", strings.NewReader(`{"username":"alice"}`))
+	req.Header.Set("X-User-ID", "forged-user")
+	req.Header.Set("Authorization", "Bearer kept")
+	rec := httptest.NewRecorder()
+
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected status %d, got %d: %s", http.StatusCreated, rec.Code, rec.Body.String())
+	}
+	if transport.apiCalls != 1 || transport.authCalls != 0 {
+		t.Fatalf("expected one upstream call and no auth calls, got %d and %d", transport.apiCalls, transport.authCalls)
+	}
+	if transport.apiUserID != "" {
+		t.Fatalf("expected no X-User-ID in upstream request, got %q", transport.apiUserID)
+	}
+	if transport.apiAuthSeen != "Bearer kept" || transport.apiBody != `{"username":"alice"}` {
+		t.Fatalf("expected other headers and body to stay, got %q and %q", transport.apiAuthSeen, transport.apiBody)
 	}
 }

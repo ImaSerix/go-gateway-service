@@ -8,5 +8,6 @@ var (
 	ErrInvalidLimit               = errors.New("invalid limit")
 	ErrInvalidWindow              = errors.New("invalid window")
 	ErrInvalidDuration            = errors.New("invalid duration")
+	ErrEmptyHeaders               = errors.New("empty headers")
 	ErrUnregisteredMiddlewareType = errors.New("unregisteredMiddlewareType")
 )

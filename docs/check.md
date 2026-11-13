@@ -14,7 +14,9 @@ Supported checks:
 
 `policy` performs an internal HTTP request, validates the response status code, and can store response values in context on success.
 
-The internal request is a copy of the client request (method and URL come from `upstream`, headers are copied, then `transform` is applied). The client body is sent only when `forward_body` is `true`.
+The internal request is a copy of the client request (method and URL come from `upstream`, headers are copied, then `transform` is applied). The client body is sent only when `forward_body` is `true`. `upstream.method` is `GET` or `POST`.
+
+Redirects are not followed: the status of the first response is the one that is checked, so a `3xx` answer is an unexpected status.
 
 ```yaml
 checks:
@@ -45,7 +47,9 @@ Outcome for the client:
 | --- | --- |
 | `expected_status` | request continues |
 | `401` | `401`, code `unauthorized` |
-| unreachable, or any other status | `503`, code `auth_unavailable` |
+| unreachable, or any other status (a redirect included) | `503`, code `auth_unavailable` |
+| `expected_status`, but `store` cannot read a value from the response | `503`, code `auth_unavailable` |
+| not called: `transform` of the internal request failed | `500`, code `internal_error` |
 
 The body of the policy response is never passed to the client. Error format: [request-flow.md](request-flow.md#gateway-errors).
 

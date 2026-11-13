@@ -68,3 +68,16 @@ type InjectMiddleware struct {
 //			name: niceName
 
 // ---
+
+type StripHeadersMiddleware struct {
+	Headers []string `yaml:"headers"`
+}
+
+// Структура выглядит примерно так:
+
+// - type: strip_headers
+//   config:
+// 		headers:
+//			- X-User-ID
+
+// ---

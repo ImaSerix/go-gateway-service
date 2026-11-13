@@ -72,6 +72,11 @@ func TestBootstrap_RegisterMiddlewares(t *testing.T) {
 			key:     types.Inject,
 			expType: &middleware.InjectFactory{},
 		},
+		{
+			name:    "strip headers",
+			key:     types.StripHeaders,
+			expType: &middleware.StripHeadersFactory{},
+		},
 	}
 
 	for _, test := range tests {

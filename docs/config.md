@@ -173,7 +173,7 @@ middlewares:
           - Authorization
 ```
 
-Supported middleware: `cors`, `recovery`, `rate_limit`, `logging`, `request_id`, `real_ip`, `timeout`, `metric`, and `inject`.
+Supported middleware: `cors`, `recovery`, `rate_limit`, `logging`, `request_id`, `real_ip`, `timeout`, `metric`, `inject`, and `strip_headers`.
 
 Short config examples:
 
@@ -186,6 +186,11 @@ Short config examples:
 - type: timeout
   config:
     duration: 2s
+
+- type: strip_headers
+  config:
+    headers:
+      - X-User-ID
 
 - type: inject
   config:

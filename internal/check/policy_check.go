@@ -86,7 +86,8 @@ func (c *PolicyCheck) Execute(ctx context.Context, r *http.Request) (context.Con
 
 	newCtx, err := c.store.Save(ctx, resp)
 	if err != nil {
-		return nil, err
+		// The policy service answered with the expected status, but its response is unusable.
+		return nil, fmt.Errorf("%w: %v", ErrPolicyUnavailable, err)
 	}
 
 	return newCtx, nil

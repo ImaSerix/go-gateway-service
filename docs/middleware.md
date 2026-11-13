@@ -12,6 +12,7 @@ Supported middleware:
 - `timeout`
 - `metric`
 - `inject`
+- `strip_headers`
 
 ## cors
 
@@ -112,3 +113,17 @@ middlewares:
 ```
 
 Adds literal values to `request.Context()`. This middleware currently does not perform an internal request and does not use Store.
+
+## strip_headers
+
+```yaml
+middlewares:
+  - type: strip_headers
+    config:
+      headers:
+        - X-User-ID
+```
+
+Removes the listed headers from the incoming request. `headers` is required and must not be empty; names are case-insensitive.
+
+Use it in `server.middlewares` for headers that only the gateway may set: the client value is dropped before routing, so it reaches neither a `policy` request nor any upstream, including routes without checks. A route transform can then set the header to a verified value.

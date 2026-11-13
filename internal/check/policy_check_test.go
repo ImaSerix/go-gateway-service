@@ -43,10 +43,14 @@ func (m *policyUpstreamMock) Do(r *http.Request) (*http.Response, error) {
 
 type policyStoreMock struct {
 	called bool
+	err    error
 }
 
 func (m *policyStoreMock) Save(ctx context.Context, r *http.Response) (context.Context, error) {
 	m.called = true
+	if m.err != nil {
+		return ctx, m.err
+	}
 	return context.WithValue(ctx, "token", "stored"), nil
 }
 
@@ -203,5 +207,40 @@ func TestPolicyCheck_ExecuteErrors(t *testing.T) {
 				t.Fatal("expected store not to be called")
 			}
 		})
+	}
+}
+
+func TestPolicyCheck_ExecuteStoreError(t *testing.T) {
+	upstream := &policyUpstreamMock{status: http.StatusOK}
+	store := &policyStoreMock{err: errors.New("failed resolve")}
+	c := check.NewPolicyCheck(nil, upstream, store, http.StatusOK, false)
+
+	req, err := http.NewRequest(http.MethodGet, "http://gateway.local/resource", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = c.Execute(context.Background(), req)
+	if !errors.Is(err, check.ErrPolicyUnavailable) {
+		t.Fatalf("expected %v, got %v", check.ErrPolicyUnavailable, err)
+	}
+}
+
+func TestPolicyCheck_ExecuteTransformError(t *testing.T) {
+	transformErr := errors.New("failed transform")
+	upstream := &policyUpstreamMock{status: http.StatusOK}
+	c := check.NewPolicyCheck([]pipeline.Transformer{policyTransformerMock{err: transformErr}}, upstream, &policyStoreMock{}, http.StatusOK, false)
+
+	req, err := http.NewRequest(http.MethodGet, "http://gateway.local/resource", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = c.Execute(context.Background(), req)
+	if !errors.Is(err, transformErr) || errors.Is(err, check.ErrPolicyUnavailable) {
+		t.Fatalf("expected plain transform error, got %v", err)
+	}
+	if upstream.req != nil {
+		t.Fatal("expected policy upstream not to be called")
 	}
 }

@@ -97,6 +97,27 @@ func TestCheckFactory(t *testing.T) {
 		},
 	}
 
+	tests = append(tests, []struct {
+		name    string
+		factory middleawreBuilder.Factory
+		cfg     any
+		wantErr bool
+	}{
+		{
+			name:    "strip headers",
+			factory: middleawreBuilder.NewStripHeadersFactory(),
+			cfg: config.StripHeadersMiddleware{
+				Headers: []string{"X-User-ID"},
+			},
+		},
+		{
+			name:    "strip headers error",
+			factory: middleawreBuilder.NewStripHeadersFactory(),
+			cfg:     config.StripHeadersMiddleware{},
+			wantErr: true,
+		},
+	}...)
+
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 

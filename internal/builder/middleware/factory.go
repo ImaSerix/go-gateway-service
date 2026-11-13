@@ -147,3 +147,24 @@ func (f *InjectFactory) Create(raw yaml.Node) (pipeline.Middleware, error) {
 
 	return middleware.Inject(cfg.Context), nil
 }
+
+type StripHeadersFactory struct{}
+
+func NewStripHeadersFactory() *StripHeadersFactory {
+	return &StripHeadersFactory{}
+}
+
+func (f *StripHeadersFactory) Create(raw yaml.Node) (pipeline.Middleware, error) {
+
+	var cfg config.StripHeadersMiddleware
+
+	if err := raw.Decode(&cfg); err != nil {
+		return nil, fmt.Errorf("new strip headers middleware factory: %w", err)
+	}
+
+	if len(cfg.Headers) == 0 {
+		return nil, ErrEmptyHeaders
+	}
+
+	return middleware.StripHeaders(cfg.Headers), nil
+}
