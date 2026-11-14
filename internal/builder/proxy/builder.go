@@ -1,6 +1,9 @@
 package proxy
 
 import (
+	"context"
+	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httputil"
@@ -12,6 +15,8 @@ import (
 	"github.com/ImaSerix/go-gateway-service/internal/proxy"
 	"github.com/ImaSerix/go-gateway-service/internal/renderer"
 )
+
+var errRewrite = errors.New("build upstream url")
 
 type ReverseBuilder struct {
 	client *http.Client
@@ -46,21 +51,42 @@ func (rb *ReverseBuilder) Build(cfg config.Upstream) (pipeline.Proxy, error) {
 		Transport: transport,
 		Rewrite: func(pr *httputil.ProxyRequest) {
 
-			// TODO: думаю тут будет ошибка
 			renderedURL, err := rb.render.Render(rawTarget(u), pr.In)
+
+			var target *url.URL
+			if err == nil {
+				target, err = url.Parse(renderedURL)
+			}
 			if err != nil {
+				// Rewrite cannot return an error: the outgoing request is left without
+				// an address and cancelled, ErrorHandler answers with 500.
+				ctx, cancel := context.WithCancelCause(pr.Out.Context())
+				cancel(fmt.Errorf("%w: %w", errRewrite, err))
+
+				pr.Out = pr.Out.WithContext(ctx)
+				pr.Out.URL.Scheme = ""
+				pr.Out.URL.Host = ""
 				return
 			}
 
-			u, err := url.Parse(renderedURL)
-			if err != nil {
-				return
+			pr.SetURL(target)
+
+			// SetURL joins the target path with the incoming one,
+			// a configured path replaces the incoming path instead.
+			if target.Path != "" {
+				pr.Out.URL.Path = target.Path
+				pr.Out.URL.RawPath = target.RawPath
 			}
 
-			pr.SetURL(u)
 			pr.Out.Method = string(m)
 		},
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
+			if cause := context.Cause(r.Context()); errors.Is(cause, errRewrite) {
+				slog.Error("upstream url build failed", "method", r.Method, "path", r.URL.Path, "err", cause)
+				httperror.Write(w, http.StatusInternalServerError, httperror.CodeInternalError, "internal error")
+				return
+			}
+
 			slog.Error("upstream request failed", "method", r.Method, "path", r.URL.Path, "err", err)
 			httperror.Write(w, http.StatusBadGateway, httperror.CodeUpstreamUnavailable, "upstream service unavailable")
 		},

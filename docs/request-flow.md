@@ -26,7 +26,7 @@ When the gateway itself rejects a request, it answers with JSON and `Content-Typ
 | `header_required`, `ip_whitelist` or `query_required` check failed | `403` | `forbidden` |
 | `rate_limit` exceeded | `429` | `too_many_requests` |
 | The request to the upstream failed | `502` | `upstream_unavailable` |
-| Internal gateway error: panic (`recovery` middleware), failed transform, any other check error | `500` | `internal_error` |
+| Internal gateway error: panic (`recovery` middleware), failed transform, failed `upstream.path` template or upstream URL, any other check error | `500` | `internal_error` |
 
 `message` is a fixed text: it has no tokens, internal addresses or internal error text. The reason is written to the gateway log. Responses of upstream services are passed through unchanged.
 

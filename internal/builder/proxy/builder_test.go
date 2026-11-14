@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	proxyBuilder "github.com/ImaSerix/go-gateway-service/internal/builder/proxy"
@@ -101,5 +102,71 @@ func TestProxyBuilder_UpstreamUnavailable(t *testing.T) {
 	}
 	if strings.Contains(w.Body.String(), "10.0.0.1") {
 		t.Fatalf("internal error text leaked to client: %s", w.Body.String())
+	}
+}
+
+type fixedRenderer struct {
+	out string
+	err error
+}
+
+func (fr *fixedRenderer) Render(s string, r *http.Request) (string, error) {
+	return fr.out, fr.err
+}
+
+// A failed upstream URL is a gateway error: 500 internal_error, no upstream request.
+func TestProxyBuilder_UpstreamURLError(t *testing.T) {
+	tests := []struct {
+		name   string
+		render *fixedRenderer
+	}{
+		{
+			name:   "template render error",
+			render: &fixedRenderer{err: errors.New("failed resolve: secret-detail")},
+		},
+		{
+			name:   "rendered url parse error",
+			render: &fixedRenderer{out: "http://secret-detail:port/users"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var calls atomic.Int32
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls.Add(1)
+			}))
+			defer srv.Close()
+
+			b := proxyBuilder.NewBuilder(srv.Client(), test.render)
+
+			p, err := b.Build(config.Upstream{
+				Host:   srv.Listener.Addr().String(),
+				Scheme: "http",
+				Path:   "/users/{route:id}",
+				Method: "GET",
+			})
+			if err != nil {
+				t.Fatalf("expected nil error, but got %v", err)
+			}
+
+			// The incoming URL is absolute and points to the upstream itself:
+			// the request must not be sent even to the address the client asked for.
+			w := httptest.NewRecorder()
+			p.ServeHTTP(w, httptest.NewRequest(http.MethodGet, srv.URL+"/users/42", nil))
+
+			if w.Code != http.StatusInternalServerError {
+				t.Fatalf("expected status %d, but got %d", http.StatusInternalServerError, w.Code)
+			}
+			if !strings.Contains(w.Body.String(), `"code":"internal_error"`) {
+				t.Fatalf("expected internal_error code, but got %s", w.Body.String())
+			}
+			if strings.Contains(w.Body.String(), "secret-detail") {
+				t.Fatalf("internal error text leaked to client: %s", w.Body.String())
+			}
+			if n := calls.Load(); n != 0 {
+				t.Fatalf("expected upstream not to be called, but got %d calls", n)
+			}
+		})
 	}
 }

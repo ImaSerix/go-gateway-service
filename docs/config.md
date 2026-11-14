@@ -52,7 +52,7 @@ upstream:
 Fields:
 - `scheme` - `http`, `https`, or `ws`.
 - `host` - host without scheme.
-- `path` - upstream path. It can contain request templates. Leave it empty to pass the incoming path through unchanged: a non-empty value is put in front of the incoming path.
+- `path` - upstream path. It can contain request templates. A non-empty value replaces the incoming path: the request goes exactly to this path. Leave it empty to pass the incoming path through unchanged. The client query string is always passed on; a query written in `path` goes before it. Details: [proxy.md](proxy.md#upstream-path).
 - `method` - upstream method (`GET`, `POST` or `PATCH` for a route; `GET` or `POST` for a `policy` request). For route upstreams, an empty value falls back to `route.method`.
 
 ## Resolver

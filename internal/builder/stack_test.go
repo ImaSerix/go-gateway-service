@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/ImaSerix/go-gateway-service/internal/builder"
@@ -461,5 +462,136 @@ func TestStack_StripHeadersOnOpenRoute(t *testing.T) {
 	}
 	if transport.apiAuthSeen != "Bearer kept" || transport.apiBody != `{"username":"alice"}` {
 		t.Fatalf("expected other headers and body to stay, got %q and %q", transport.apiAuthSeen, transport.apiBody)
+	}
+}
+
+// upstream.path: a non-empty path replaces the client path, an empty one passes
+// the client path through; the client query is always kept after the configured one.
+func TestStack_UpstreamPath(t *testing.T) {
+	tests := []struct {
+		name         string
+		routePath    string
+		upstreamPath string
+		target       string
+
+		expAPIPath string
+		expQuery   string
+	}{
+		{
+			name:         "configured path equal to client path is not doubled",
+			routePath:    "/resource/{id}",
+			upstreamPath: "/resource/{route:id}",
+			target:       "/resource/42?limit=5&before=10",
+			expAPIPath:   "/resource/42",
+			expQuery:     "limit=5&before=10",
+		},
+		{
+			name:         "configured path replaces client path",
+			routePath:    "/users/{id}",
+			upstreamPath: "/api/v1/profiles/{route:id}",
+			target:       "/users/42",
+			expAPIPath:   "/api/v1/profiles/42",
+		},
+		{
+			name:       "empty path passes client path and query through",
+			routePath:  "/resource/{id}",
+			target:     "/resource/42?limit=5&before=10",
+			expAPIPath: "/resource/42",
+			expQuery:   "limit=5&before=10",
+		},
+		{
+			name:         "configured query goes before client query",
+			routePath:    "/find",
+			upstreamPath: "/search?source=gateway&locale={query:locale}",
+			target:       "/find?q=cats&locale=lv",
+			expAPIPath:   "/search",
+			expQuery:     "source=gateway&locale=lv&q=cats&locale=lv",
+		},
+		{
+			name:         "configured query without client query",
+			routePath:    "/find",
+			upstreamPath: "/search?source=gateway",
+			target:       "/find",
+			expAPIPath:   "/search",
+			expQuery:     "source=gateway",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			transport := &authStackRoundTripper{}
+			hb := newStackHandlerBuilder(&http.Client{Transport: transport})
+
+			h, err := hb.Build(config.Root{
+				Routes: []config.Route{
+					{
+						Path:   test.routePath,
+						Method: http.MethodGet,
+						Upstream: config.Upstream{
+							Scheme: "http",
+							Host:   "api.local",
+							Path:   test.upstreamPath,
+						},
+					},
+				},
+			})
+			if err != nil {
+				t.Fatalf("expected nil error, got %v", err)
+			}
+
+			rec := httptest.NewRecorder()
+			h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, test.target, nil))
+
+			if rec.Code != http.StatusCreated {
+				t.Fatalf("expected status %d, got %d: %s", http.StatusCreated, rec.Code, rec.Body.String())
+			}
+			if transport.apiCalls != 1 {
+				t.Fatalf("expected one upstream call, got %d", transport.apiCalls)
+			}
+			if transport.apiPath != test.expAPIPath || transport.apiQuery != test.expQuery {
+				t.Fatalf("expected upstream %s?%s, got %s?%s", test.expAPIPath, test.expQuery, transport.apiPath, transport.apiQuery)
+			}
+		})
+	}
+}
+
+// A template in upstream.path that cannot be resolved: 500 internal_error, no upstream request.
+func TestStack_UpstreamPathTemplateError(t *testing.T) {
+	var calls atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+	}))
+	defer srv.Close()
+
+	hb := newStackHandlerBuilder(srv.Client())
+
+	h, err := hb.Build(config.Root{
+		Routes: []config.Route{
+			{
+				Path:   "/resource",
+				Method: http.MethodGet,
+				Upstream: config.Upstream{
+					Scheme: "http",
+					Host:   srv.Listener.Addr().String(),
+					Path:   "/resource/{query:id}",
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/resource", nil))
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("expected status %d, got %d: %s", http.StatusInternalServerError, rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"code":"internal_error"`) {
+		t.Fatalf("expected internal_error code, got %s", rec.Body.String())
+	}
+	if n := calls.Load(); n != 0 {
+		t.Fatalf("expected upstream not to be called, got %d calls", n)
 	}
 }
