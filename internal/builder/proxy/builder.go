@@ -2,8 +2,6 @@ package proxy
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httputil"
@@ -16,7 +14,8 @@ import (
 	"github.com/ImaSerix/go-gateway-service/internal/renderer"
 )
 
-var errRewrite = errors.New("build upstream url")
+// rewriteErrKey is the context key of the error that Rewrite hands over to ErrorHandler.
+type rewriteErrKey struct{}
 
 type ReverseBuilder struct {
 	client *http.Client
@@ -59,11 +58,8 @@ func (rb *ReverseBuilder) Build(cfg config.Upstream) (pipeline.Proxy, error) {
 			}
 			if err != nil {
 				// Rewrite cannot return an error: the outgoing request is left without
-				// an address and cancelled, ErrorHandler answers with 500.
-				ctx, cancel := context.WithCancelCause(pr.Out.Context())
-				cancel(fmt.Errorf("%w: %w", errRewrite, err))
-
-				pr.Out = pr.Out.WithContext(ctx)
+				// an address and carries the error, ErrorHandler answers with 500.
+				pr.Out = pr.Out.WithContext(context.WithValue(pr.Out.Context(), rewriteErrKey{}, err))
 				pr.Out.URL.Scheme = ""
 				pr.Out.URL.Host = ""
 				return
@@ -81,8 +77,8 @@ func (rb *ReverseBuilder) Build(cfg config.Upstream) (pipeline.Proxy, error) {
 			pr.Out.Method = string(m)
 		},
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
-			if cause := context.Cause(r.Context()); errors.Is(cause, errRewrite) {
-				slog.Error("upstream url build failed", "method", r.Method, "path", r.URL.Path, "err", cause)
+			if rewriteErr, ok := r.Context().Value(rewriteErrKey{}).(error); ok {
+				slog.Error("upstream url build failed", "method", r.Method, "path", r.URL.Path, "err", rewriteErr)
 				httperror.Write(w, http.StatusInternalServerError, httperror.CodeInternalError, "internal error")
 				return
 			}

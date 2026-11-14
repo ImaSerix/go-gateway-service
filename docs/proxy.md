@@ -23,4 +23,6 @@ The route `upstream` config defines the target URL and method. The upstream path
 
 If a template in `upstream.path` cannot be rendered (for example `{query:locale}` without `locale` in the request) or the rendered URL cannot be parsed, the gateway answers `500` with code `internal_error` and writes the reason to its log. The request is not sent to the upstream. To reject requests without a required parameter with `403`, use the `query_required` or `header_required` check.
 
-`Rewrite` cannot return an error, so it cancels the outgoing request with a cause and clears its address; `ErrorHandler` recognizes the cause and writes the `500`. Any other transport error is answered with `502` `upstream_unavailable` ([request-flow.md](request-flow.md#gateway-errors)).
+The answer is the same when the request context is already cancelled or its deadline has passed (for example by the `timeout` middleware).
+
+`Rewrite` cannot return an error, so it clears the address of the outgoing request and puts the error into its context; `ErrorHandler` finds the error there and writes the `500`. Any other transport error is answered with `502` `upstream_unavailable` ([request-flow.md](request-flow.md#gateway-errors)).

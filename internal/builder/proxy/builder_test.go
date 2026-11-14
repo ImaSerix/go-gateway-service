@@ -1,12 +1,14 @@
 package proxy_test
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	proxyBuilder "github.com/ImaSerix/go-gateway-service/internal/builder/proxy"
 	"github.com/ImaSerix/go-gateway-service/internal/config"
@@ -115,8 +117,9 @@ func (fr *fixedRenderer) Render(s string, r *http.Request) (string, error) {
 }
 
 // A failed upstream URL is a gateway error: 500 internal_error, no upstream request.
+// The answer does not depend on the state of the request context.
 func TestProxyBuilder_UpstreamURLError(t *testing.T) {
-	tests := []struct {
+	renders := []struct {
 		name   string
 		render *fixedRenderer
 	}{
@@ -130,43 +133,74 @@ func TestProxyBuilder_UpstreamURLError(t *testing.T) {
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			var calls atomic.Int32
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				calls.Add(1)
-			}))
-			defer srv.Close()
+	contexts := []struct {
+		name string
+		ctx  func() (context.Context, context.CancelFunc)
+	}{
+		{
+			name: "active context",
+			ctx: func() (context.Context, context.CancelFunc) {
+				return context.WithCancel(context.Background())
+			},
+		},
+		{
+			name: "cancelled context",
+			ctx: func() (context.Context, context.CancelFunc) {
+				ctx, cancel := context.WithCancel(context.Background())
+				cancel()
+				return ctx, cancel
+			},
+		},
+		{
+			name: "expired deadline",
+			ctx: func() (context.Context, context.CancelFunc) {
+				return context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+			},
+		},
+	}
 
-			b := proxyBuilder.NewBuilder(srv.Client(), test.render)
+	for _, rend := range renders {
+		for _, c := range contexts {
+			t.Run(rend.name+"/"+c.name, func(t *testing.T) {
+				var calls atomic.Int32
+				srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					calls.Add(1)
+				}))
+				defer srv.Close()
 
-			p, err := b.Build(config.Upstream{
-				Host:   srv.Listener.Addr().String(),
-				Scheme: "http",
-				Path:   "/users/{route:id}",
-				Method: "GET",
+				b := proxyBuilder.NewBuilder(srv.Client(), rend.render)
+
+				p, err := b.Build(config.Upstream{
+					Host:   srv.Listener.Addr().String(),
+					Scheme: "http",
+					Path:   "/users/{route:id}",
+					Method: "GET",
+				})
+				if err != nil {
+					t.Fatalf("expected nil error, but got %v", err)
+				}
+
+				ctx, cancel := c.ctx()
+				defer cancel()
+
+				// The incoming URL is absolute and points to the upstream itself:
+				// the request must not be sent even to the address the client asked for.
+				w := httptest.NewRecorder()
+				p.ServeHTTP(w, httptest.NewRequest(http.MethodGet, srv.URL+"/users/42", nil).WithContext(ctx))
+
+				if w.Code != http.StatusInternalServerError {
+					t.Fatalf("expected status %d, but got %d", http.StatusInternalServerError, w.Code)
+				}
+				if !strings.Contains(w.Body.String(), `"code":"internal_error"`) {
+					t.Fatalf("expected internal_error code, but got %s", w.Body.String())
+				}
+				if strings.Contains(w.Body.String(), "secret-detail") {
+					t.Fatalf("internal error text leaked to client: %s", w.Body.String())
+				}
+				if n := calls.Load(); n != 0 {
+					t.Fatalf("expected upstream not to be called, but got %d calls", n)
+				}
 			})
-			if err != nil {
-				t.Fatalf("expected nil error, but got %v", err)
-			}
-
-			// The incoming URL is absolute and points to the upstream itself:
-			// the request must not be sent even to the address the client asked for.
-			w := httptest.NewRecorder()
-			p.ServeHTTP(w, httptest.NewRequest(http.MethodGet, srv.URL+"/users/42", nil))
-
-			if w.Code != http.StatusInternalServerError {
-				t.Fatalf("expected status %d, but got %d", http.StatusInternalServerError, w.Code)
-			}
-			if !strings.Contains(w.Body.String(), `"code":"internal_error"`) {
-				t.Fatalf("expected internal_error code, but got %s", w.Body.String())
-			}
-			if strings.Contains(w.Body.String(), "secret-detail") {
-				t.Fatalf("internal error text leaked to client: %s", w.Body.String())
-			}
-			if n := calls.Load(); n != 0 {
-				t.Fatalf("expected upstream not to be called, but got %d calls", n)
-			}
-		})
+		}
 	}
 }

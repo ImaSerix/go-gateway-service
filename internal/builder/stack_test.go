@@ -171,6 +171,7 @@ type authStackRoundTripper struct {
 	apiCalls    int
 	apiPath     string
 	apiQuery    string
+	apiURI      string
 	apiUserID   string
 	apiBody     string
 	apiAuthSeen string
@@ -217,6 +218,7 @@ func (rt *authStackRoundTripper) RoundTrip(r *http.Request) (*http.Response, err
 		rt.apiCalls++
 		rt.apiPath = r.URL.Path
 		rt.apiQuery = r.URL.RawQuery
+		rt.apiURI = r.URL.RequestURI()
 		rt.apiUserID = strings.Join(r.Header.Values("X-User-ID"), ",")
 		rt.apiBody = body
 		rt.apiAuthSeen = r.Header.Get("Authorization")
@@ -467,6 +469,7 @@ func TestStack_StripHeadersOnOpenRoute(t *testing.T) {
 
 // upstream.path: a non-empty path replaces the client path, an empty one passes
 // the client path through; the client query is always kept after the configured one.
+// The request URI is compared as sent, so a lost path encoding is visible.
 func TestStack_UpstreamPath(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -474,46 +477,87 @@ func TestStack_UpstreamPath(t *testing.T) {
 		upstreamPath string
 		target       string
 
-		expAPIPath string
-		expQuery   string
+		expURI string
 	}{
 		{
 			name:         "configured path equal to client path is not doubled",
 			routePath:    "/resource/{id}",
 			upstreamPath: "/resource/{route:id}",
 			target:       "/resource/42?limit=5&before=10",
-			expAPIPath:   "/resource/42",
-			expQuery:     "limit=5&before=10",
+			expURI:       "/resource/42?limit=5&before=10",
 		},
 		{
 			name:         "configured path replaces client path",
 			routePath:    "/users/{id}",
 			upstreamPath: "/api/v1/profiles/{route:id}",
 			target:       "/users/42",
-			expAPIPath:   "/api/v1/profiles/42",
+			expURI:       "/api/v1/profiles/42",
 		},
 		{
-			name:       "empty path passes client path and query through",
-			routePath:  "/resource/{id}",
-			target:     "/resource/42?limit=5&before=10",
-			expAPIPath: "/resource/42",
-			expQuery:   "limit=5&before=10",
+			name:      "empty path passes client path and query through",
+			routePath: "/resource/{id}",
+			target:    "/resource/42?limit=5&before=10",
+			expURI:    "/resource/42?limit=5&before=10",
 		},
 		{
 			name:         "configured query goes before client query",
 			routePath:    "/find",
 			upstreamPath: "/search?source=gateway&locale={query:locale}",
 			target:       "/find?q=cats&locale=lv",
-			expAPIPath:   "/search",
-			expQuery:     "source=gateway&locale=lv&q=cats&locale=lv",
+			expURI:       "/search?source=gateway&locale=lv&q=cats&locale=lv",
 		},
 		{
 			name:         "configured query without client query",
 			routePath:    "/find",
 			upstreamPath: "/search?source=gateway",
 			target:       "/find",
-			expAPIPath:   "/search",
-			expQuery:     "source=gateway",
+			expURI:       "/search?source=gateway",
+		},
+		{
+			name:      "empty path passes root through",
+			routePath: "/",
+			target:    "/",
+			expURI:    "/",
+		},
+		{
+			name:         "configured root replaces client path",
+			routePath:    "/health",
+			upstreamPath: "/",
+			target:       "/health",
+			expURI:       "/",
+		},
+		{
+			name:      "empty path keeps client trailing slash",
+			routePath: "/resource/{id}/",
+			target:    "/resource/42/",
+			expURI:    "/resource/42/",
+		},
+		{
+			name:         "configured trailing slash is kept",
+			routePath:    "/resource/{id}",
+			upstreamPath: "/resource/{route:id}/",
+			target:       "/resource/42",
+			expURI:       "/resource/42/",
+		},
+		{
+			name:         "configured path without trailing slash drops client one",
+			routePath:    "/resource/{id}/",
+			upstreamPath: "/resource/{route:id}",
+			target:       "/resource/42/",
+			expURI:       "/resource/42",
+		},
+		{
+			name:      "empty path keeps client path encoding",
+			routePath: "/resource/{id}",
+			target:    "/resource/a%2Fb?limit=5",
+			expURI:    "/resource/a%2Fb?limit=5",
+		},
+		{
+			name:         "configured path encoding is kept",
+			routePath:    "/resource/{id}",
+			upstreamPath: "/api/a%2Fb/{route:id}",
+			target:       "/resource/42",
+			expURI:       "/api/a%2Fb/42",
 		},
 	}
 
@@ -548,8 +592,8 @@ func TestStack_UpstreamPath(t *testing.T) {
 			if transport.apiCalls != 1 {
 				t.Fatalf("expected one upstream call, got %d", transport.apiCalls)
 			}
-			if transport.apiPath != test.expAPIPath || transport.apiQuery != test.expQuery {
-				t.Fatalf("expected upstream %s?%s, got %s?%s", test.expAPIPath, test.expQuery, transport.apiPath, transport.apiQuery)
+			if transport.apiURI != test.expURI {
+				t.Fatalf("expected upstream %s, got %s", test.expURI, transport.apiURI)
 			}
 		})
 	}
