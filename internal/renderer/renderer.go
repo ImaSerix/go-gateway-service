@@ -1,6 +1,7 @@
 package renderer
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -53,12 +54,18 @@ func (rend *Render) Render(s string, r *http.Request) (string, error) {
 		return "", fmt.Errorf("%w: %s", ErrInvalidTemplate, "all brackets is not closed")
 	}
 
-	return rend.render(s, r, nil)
+	out, err := rend.render(s, r, nil)
+	if err != nil {
+		return "", err
+	}
+
+	return out, nil
 }
 
 // RenderURL renders a URL template so that a value stays a value: before "?" it is
 // escaped as a path segment, after "?" as a query value, and cannot change the URL structure.
-// A value that is "." or "..", or makes such a path segment, fails with ErrDotSegment.
+// A value that is "." or "..", or makes such a path segment, fails with ErrDotSegment;
+// this error is returned even if another template of the URL cannot be resolved.
 func (rend *Render) RenderURL(s string, r *http.Request) (string, error) {
 
 	if strings.Count(s, "{") != strings.Count(s, "}") {
@@ -73,7 +80,7 @@ func (rend *Render) RenderURL(s string, r *http.Request) (string, error) {
 		}
 		return url.PathEscape(v), nil
 	})
-	if err != nil {
+	if errors.Is(err, ErrDotSegment) {
 		return "", err
 	}
 
@@ -84,6 +91,10 @@ func (rend *Render) RenderURL(s string, r *http.Request) (string, error) {
 		if (segment == "." || segment == "..") && segment != segments[i] {
 			return "", ErrDotSegment
 		}
+	}
+
+	if err != nil {
+		return "", err
 	}
 
 	if !hasQuery {
@@ -101,6 +112,8 @@ func (rend *Render) RenderURL(s string, r *http.Request) (string, error) {
 }
 
 // render replaces the templates in s; escape, if set, is applied to every value.
+// On error it also returns s with the failed templates left as they are.
+// The first error is returned, an error of escape goes before a failed resolve.
 func (rend *Render) render(s string, r *http.Request, escape func(string) (string, error)) (string, error) {
 
 	var renderErr error
@@ -114,27 +127,35 @@ func (rend *Render) render(s string, r *http.Request, escape func(string) (strin
 
 		v, ok := rend.resolver.Resolve(r, source, key)
 		if !ok {
-			renderErr = fmt.Errorf("%w: %s", ErrFailedResolve, v)
-			return ""
+			if renderErr == nil {
+				renderErr = fmt.Errorf("%w: %s", ErrFailedResolve, v)
+			}
+			return s
 		}
 
 		value := fmt.Sprint(v)
 		if escape != nil {
+			// chi routes by the escaped path when the request has one,
+			// a route parameter is then escaped too: escape it only once.
+			if source == "route" && r.URL.RawPath != "" {
+				if unescaped, err := url.PathUnescape(value); err == nil {
+					value = unescaped
+				}
+			}
+
 			escaped, err := escape(value)
 			if err != nil {
-				renderErr = err
-				return ""
+				if renderErr == nil || errors.Is(renderErr, ErrFailedResolve) {
+					renderErr = err
+				}
+				return s
 			}
 			value = escaped
 		}
 		return value
 	})
 
-	if renderErr != nil {
-		return "", renderErr
-	}
-
-	return out, nil
+	return out, renderErr
 
 }
 

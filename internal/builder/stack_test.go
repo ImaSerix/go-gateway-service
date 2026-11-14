@@ -788,6 +788,13 @@ func TestStack_UpstreamPathDotSegmentValue(t *testing.T) {
 		{name: "dot segment made of two values", routePath: "/view", upstreamPath: "/public/{query:a}{query:b}/info", target: "/view?a=.&b=."},
 		{name: "dot segment made of config and value", routePath: "/view", upstreamPath: "/public/.{query:a}/info", target: "/view?a=."},
 		{name: "dot value next to config text", routePath: "/view", upstreamPath: "/public/v{query:a}/info", target: "/view?a=.."},
+		{name: "one dot made of config and an empty value", routePath: "/view", upstreamPath: "/public/.{context:empty}/info", target: "/view"},
+		{name: "two dots made of config and an empty value", routePath: "/view", upstreamPath: "/public/..{context:empty}/info", target: "/view"},
+		{name: "dot value before an unresolved template", routePath: "/view", upstreamPath: "/public/{query:id}/{query:missing}", target: "/view?id=.."},
+		{name: "dot value after an unresolved template", routePath: "/view", upstreamPath: "/public/{query:missing}/{query:id}", target: "/view?id=.."},
+		{name: "dot value with an unresolved template in query", routePath: "/view", upstreamPath: "/public/{query:id}?x={query:missing}", target: "/view?id=.."},
+		{name: "made dot segment before an unresolved template", routePath: "/view", upstreamPath: "/public/.{context:empty}/{query:missing}", target: "/view"},
+		{name: "made dot segment after an unresolved template", routePath: "/view", upstreamPath: "/public/{query:missing}/.{context:empty}", target: "/view"},
 	}
 
 	for _, test := range tests {
@@ -805,6 +812,11 @@ func TestStack_UpstreamPathDotSegmentValue(t *testing.T) {
 					{
 						Path:   test.routePath,
 						Method: http.MethodGet,
+						Middlewares: []config.Middleware{
+							{Type: "inject", Config: mustYAML(t, map[string]any{
+								"context": map[string]any{"empty": ""},
+							})},
+						},
 						Upstream: config.Upstream{
 							Scheme: "http",
 							Host:   srv.Listener.Addr().String(),
@@ -901,6 +913,41 @@ func TestStack_PolicyPathValues(t *testing.T) {
 			expStatus:  http.StatusBadRequest,
 			expCode:    "bad_request",
 		},
+		{
+			name:       "encoded dots in route value",
+			policyPath: "/auth/{route:id}/check",
+			target:     "/resource/%2e%2e",
+			expStatus:  http.StatusBadRequest,
+			expCode:    "bad_request",
+		},
+		{
+			name:       "encoded slash in route value is not encoded twice",
+			policyPath: "/auth/{route:id}/check",
+			target:     "/resource/a%2Fb",
+			expStatus:  http.StatusCreated,
+			expAuthURI: "/auth/a%2Fb/check",
+		},
+		{
+			name:       "dot value before an unresolved template",
+			policyPath: "/auth/{query:id}/{query:missing}",
+			target:     "/resource/1?id=..",
+			expStatus:  http.StatusBadRequest,
+			expCode:    "bad_request",
+		},
+		{
+			name:       "dot value after an unresolved template",
+			policyPath: "/auth/{query:missing}/{query:id}",
+			target:     "/resource/1?id=..",
+			expStatus:  http.StatusBadRequest,
+			expCode:    "bad_request",
+		},
+		{
+			name:       "unresolved template without a dot value",
+			policyPath: "/auth/{query:missing}/check",
+			target:     "/resource/1",
+			expStatus:  http.StatusServiceUnavailable,
+			expCode:    "auth_unavailable",
+		},
 	}
 
 	for _, test := range tests {
@@ -964,5 +1011,53 @@ func TestStack_PolicyPathValues(t *testing.T) {
 				t.Fatalf("expected policy request %s, got %s", test.expAuthURI, transport.authURI)
 			}
 		})
+	}
+}
+
+// Escaping belongs to URLs only: transforms get a route value exactly as the router gives it,
+// for an escaped request path that is the escaped segment.
+func TestStack_RouteValueInTransformsIsNotChanged(t *testing.T) {
+	transport := &authStackRoundTripper{}
+	hb := newStackHandlerBuilder(&http.Client{Transport: transport})
+
+	h, err := hb.Build(config.Root{
+		Routes: []config.Route{
+			{
+				Path:   "/r/{id}",
+				Method: http.MethodPost,
+				Transforms: config.Transform{
+					"header":       mustYAML(t, map[string]any{"X-User-ID": "{route:id}"}),
+					"query_params": mustYAML(t, map[string]any{"copy": "{route:id}"}),
+					"body_fields":  mustYAML(t, map[string]any{"id": "{route:id}"}),
+				},
+				Upstream: config.Upstream{
+					Scheme: "http",
+					Host:   "api.local",
+					Path:   "/api/{route:id}",
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/r/a%2Fb", strings.NewReader(`{"name":"Ada"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected status %d, got %d: %s", http.StatusCreated, rec.Code, rec.Body.String())
+	}
+	if transport.apiUserID != "a%2Fb" {
+		t.Fatalf("expected header value a%%2Fb, got %q", transport.apiUserID)
+	}
+	if !strings.Contains(transport.apiBody, `"id":"a%2Fb"`) {
+		t.Fatalf("expected body field a%%2Fb, got %s", transport.apiBody)
+	}
+	// The path of the same request has the value encoded once.
+	if transport.apiURI != "/api/a%2Fb?copy=a%252Fb" {
+		t.Fatalf("expected upstream /api/a%%2Fb?copy=a%%252Fb, got %s", transport.apiURI)
 	}
 }

@@ -1,6 +1,7 @@
 package renderer_test
 
 import (
+	"context"
 	"errors"
 	"io"
 	"net/http"
@@ -116,6 +117,54 @@ func TestRender_RenderURL(t *testing.T) {
 			expErr:   renderer.ErrDotSegment,
 		},
 		{
+			name:     "one dot made of template text and an empty value",
+			template: "http://api.local/users/.{context:empty}/items",
+			target:   "/",
+			expErr:   renderer.ErrDotSegment,
+		},
+		{
+			name:     "two dots made of template text and an empty value",
+			template: "http://api.local/users/..{context:empty}",
+			target:   "/",
+			expErr:   renderer.ErrDotSegment,
+		},
+		{
+			name:     "empty value next to other template text",
+			template: "http://api.local/users/v.{context:empty}/items",
+			target:   "/",
+			exp:      "http://api.local/users/v./items",
+		},
+		{
+			name:     "dot value before a missing value",
+			template: "http://api.local/users/{query:id}/{query:missing}",
+			target:   "/?id=..",
+			expErr:   renderer.ErrDotSegment,
+		},
+		{
+			name:     "dot value after a missing value",
+			template: "http://api.local/users/{query:missing}/{query:id}",
+			target:   "/?id=..",
+			expErr:   renderer.ErrDotSegment,
+		},
+		{
+			name:     "dot value with a missing value in query",
+			template: "http://api.local/users/{query:id}?x={query:missing}",
+			target:   "/?id=..",
+			expErr:   renderer.ErrDotSegment,
+		},
+		{
+			name:     "made dot segment with a missing value in another segment",
+			template: "http://api.local/users/{query:missing}/.{context:empty}",
+			target:   "/",
+			expErr:   renderer.ErrDotSegment,
+		},
+		{
+			name:     "missing value next to a dot in the same segment",
+			template: "http://api.local/users/.{query:missing}",
+			target:   "/",
+			expErr:   renderer.ErrFailedResolve,
+		},
+		{
 			name:     "dots in query",
 			template: "http://api.local/search?dir={query:dir}",
 			target:   "/?dir=..",
@@ -145,6 +194,7 @@ func TestRender_RenderURL(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, test.target, nil)
 			req.Header.Set("X-Name", "a/b&c")
+			req = req.WithContext(context.WithValue(req.Context(), "empty", ""))
 
 			got, err := renderer.NewRender(resolver.NewMultiResolver()).RenderURL(test.template, req)
 			if !errors.Is(err, test.expErr) {

@@ -25,6 +25,6 @@ If a template in `upstream.path` cannot be rendered (for example `{query:locale}
 
 The answer is the same when the request context is already cancelled or its deadline has passed (for example by the `timeout` middleware).
 
-If a value turns a path segment into `.` or `..` ([pattern.md](pattern.md#values-in-a-url)), the gateway answers `400` with code `bad_request`. The request is not sent to the upstream either.
+If a value turns a path segment into `.` or `..` ([pattern.md](pattern.md#values-in-a-url)), the gateway answers `400` with code `bad_request`, also when another template of the same path cannot be rendered. The request is not sent to the upstream either.
 
 `Rewrite` cannot return an error, so it clears the address of the outgoing request and puts the error into its context; `ErrorHandler` finds the error there and writes the `500` or the `400`. Any other transport error is answered with `502` `upstream_unavailable` ([request-flow.md](request-flow.md#gateway-errors)).
