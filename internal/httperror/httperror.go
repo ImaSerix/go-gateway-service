@@ -8,6 +8,7 @@ import (
 )
 
 const (
+	CodeBadRequest          = "bad_request"
 	CodeUnauthorized        = "unauthorized"
 	CodeAuthUnavailable     = "auth_unavailable"
 	CodeNotFound            = "not_found"

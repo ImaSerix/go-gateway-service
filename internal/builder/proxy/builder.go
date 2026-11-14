@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httputil"
@@ -50,7 +51,7 @@ func (rb *ReverseBuilder) Build(cfg config.Upstream) (pipeline.Proxy, error) {
 		Transport: transport,
 		Rewrite: func(pr *httputil.ProxyRequest) {
 
-			renderedURL, err := rb.render.Render(rawTarget(u), pr.In)
+			renderedURL, err := rb.render.RenderURL(rawTarget(u), pr.In)
 
 			var target *url.URL
 			if err == nil {
@@ -58,7 +59,7 @@ func (rb *ReverseBuilder) Build(cfg config.Upstream) (pipeline.Proxy, error) {
 			}
 			if err != nil {
 				// Rewrite cannot return an error: the outgoing request is left without
-				// an address and carries the error, ErrorHandler answers with 500.
+				// an address and carries the error, ErrorHandler answers with 500 or 400.
 				pr.Out = pr.Out.WithContext(context.WithValue(pr.Out.Context(), rewriteErrKey{}, err))
 				pr.Out.URL.Scheme = ""
 				pr.Out.URL.Host = ""
@@ -78,6 +79,12 @@ func (rb *ReverseBuilder) Build(cfg config.Upstream) (pipeline.Proxy, error) {
 		},
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
 			if rewriteErr, ok := r.Context().Value(rewriteErrKey{}).(error); ok {
+				if errors.Is(rewriteErr, renderer.ErrDotSegment) {
+					slog.Warn("upstream url rejected", "method", r.Method, "path", r.URL.Path, "err", rewriteErr)
+					httperror.Write(w, http.StatusBadRequest, httperror.CodeBadRequest, "invalid request")
+					return
+				}
+
 				slog.Error("upstream url build failed", "method", r.Method, "path", r.URL.Path, "err", rewriteErr)
 				httperror.Write(w, http.StatusInternalServerError, httperror.CodeInternalError, "internal error")
 				return

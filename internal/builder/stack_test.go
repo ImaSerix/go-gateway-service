@@ -165,6 +165,7 @@ type authStackRoundTripper struct {
 	authCalls   int
 	authMethod  string
 	authPath    string
+	authURI     string
 	authBody    string
 	authHeader  string
 	authUserID  string
@@ -189,6 +190,7 @@ func (rt *authStackRoundTripper) RoundTrip(r *http.Request) (*http.Response, err
 		rt.authCalls++
 		rt.authMethod = r.Method
 		rt.authPath = r.URL.Path
+		rt.authURI = r.URL.RequestURI()
 		rt.authBody = body
 		if r.URL.Path == "/redirected" {
 			return response(http.StatusOK, `{"id":"user-1"}`), nil
@@ -637,5 +639,330 @@ func TestStack_UpstreamPathTemplateError(t *testing.T) {
 	}
 	if n := calls.Load(); n != 0 {
 		t.Fatalf("expected upstream not to be called, got %d calls", n)
+	}
+}
+
+// A value from the request stays a value: it cannot change the path or the query
+// structure of the upstream URL, the path suffix from the config is kept.
+func TestStack_UpstreamPathValuesAreEscaped(t *testing.T) {
+	tests := []struct {
+		name         string
+		routePath    string
+		upstreamPath string
+		target       string
+
+		expURI string
+	}{
+		{
+			name:         "fragment sign in route value keeps path suffix",
+			routePath:    "/users/{id}",
+			upstreamPath: "/users/{route:id}/profile",
+			target:       "/users/42%23",
+			expURI:       "/users/42%23/profile",
+		},
+		{
+			name:         "query and fragment signs in path value keep path suffix",
+			routePath:    "/view",
+			upstreamPath: "/public/{query:id}/info",
+			target:       "/view?id=42%3Fadmin%3Dtrue%23",
+			expURI:       "/public/42%3Fadmin=true%23/info?id=42%3Fadmin%3Dtrue%23",
+		},
+		{
+			name:         "ampersand in query value does not add a parameter",
+			routePath:    "/find",
+			upstreamPath: "/search?locale={query:locale}",
+			target:       "/find?locale=lv%26admin%3Dtrue",
+			expURI:       "/search?locale=lv%26admin%3Dtrue&locale=lv%26admin%3Dtrue",
+		},
+		{
+			name:         "slashes in path value do not add segments",
+			routePath:    "/view",
+			upstreamPath: "/public/{query:id}",
+			target:       "/view?id=..%2Fadmin%2Fdelete",
+			expURI:       "/public/..%2Fadmin%2Fdelete?id=..%2Fadmin%2Fdelete",
+		},
+		{
+			name:         "encoded slash in route value is not encoded twice",
+			routePath:    "/resource/{id}",
+			upstreamPath: "/api/{route:id}/info",
+			target:       "/resource/a%2Fb",
+			expURI:       "/api/a%2Fb/info",
+		},
+		{
+			name:         "percent sign in path value",
+			routePath:    "/view",
+			upstreamPath: "/public/{query:id}/info",
+			target:       "/view?id=50%2541",
+			expURI:       "/public/50%2541/info?id=50%2541",
+		},
+		{
+			name:         "header value in path",
+			routePath:    "/view",
+			upstreamPath: "/public/{header:X-Name}/info",
+			target:       "/view",
+			expURI:       "/public/a%2Fb%3Fc/info",
+		},
+		{
+			name:         "uuid is passed as before",
+			routePath:    "/users/{id}",
+			upstreamPath: "/api/users/{route:id}/profile?ref={query:ref}",
+			target:       "/users/3f2b8c1e-7a4d-4e9b-9c55-0d1a2b3c4d5e?ref=Abc-123",
+			expURI:       "/api/users/3f2b8c1e-7a4d-4e9b-9c55-0d1a2b3c4d5e/profile?ref=Abc-123&ref=Abc-123",
+		},
+		{
+			name:         "dot segments written in config are kept",
+			routePath:    "/users/{id}",
+			upstreamPath: "/api/./v1/../users/{route:id}",
+			target:       "/users/42",
+			expURI:       "/api/./v1/../users/42",
+		},
+		{
+			name:         "dots in query value are a regular value",
+			routePath:    "/find",
+			upstreamPath: "/search?dir={query:dir}",
+			target:       "/find?dir=..",
+			expURI:       "/search?dir=..&dir=..",
+		},
+		{
+			name:         "value with dots that is not a dot segment",
+			routePath:    "/files/{name}",
+			upstreamPath: "/files/{route:name}",
+			target:       "/files/..a",
+			expURI:       "/files/..a",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			transport := &authStackRoundTripper{}
+			hb := newStackHandlerBuilder(&http.Client{Transport: transport})
+
+			h, err := hb.Build(config.Root{
+				Routes: []config.Route{
+					{
+						Path:   test.routePath,
+						Method: http.MethodGet,
+						Upstream: config.Upstream{
+							Scheme: "http",
+							Host:   "api.local",
+							Path:   test.upstreamPath,
+						},
+					},
+				},
+			})
+			if err != nil {
+				t.Fatalf("expected nil error, got %v", err)
+			}
+
+			req := httptest.NewRequest(http.MethodGet, test.target, nil)
+			req.Header.Set("X-Name", "a/b?c")
+			rec := httptest.NewRecorder()
+			h.ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusCreated {
+				t.Fatalf("expected status %d, got %d: %s", http.StatusCreated, rec.Code, rec.Body.String())
+			}
+			if transport.apiCalls != 1 {
+				t.Fatalf("expected one upstream call, got %d", transport.apiCalls)
+			}
+			if transport.apiURI != test.expURI {
+				t.Fatalf("expected upstream %s, got %s", test.expURI, transport.apiURI)
+			}
+		})
+	}
+}
+
+// A value that turns a path segment into "." or "..": 400 bad_request, no upstream request.
+func TestStack_UpstreamPathDotSegmentValue(t *testing.T) {
+	tests := []struct {
+		name         string
+		routePath    string
+		upstreamPath string
+		target       string
+	}{
+		{name: "two dots from query", routePath: "/view", upstreamPath: "/public/{query:id}/info", target: "/view?id=.."},
+		{name: "one dot from query", routePath: "/view", upstreamPath: "/public/{query:id}/info", target: "/view?id=."},
+		{name: "two dots from route", routePath: "/users/{id}", upstreamPath: "/users/{route:id}/profile", target: "/users/.."},
+		{name: "encoded dots from route", routePath: "/users/{id}", upstreamPath: "/users/{route:id}/profile", target: "/users/%2e%2e"},
+		{name: "two dots from header", routePath: "/view", upstreamPath: "/public/{header:X-Name}", target: "/view"},
+		{name: "dot segment made of two values", routePath: "/view", upstreamPath: "/public/{query:a}{query:b}/info", target: "/view?a=.&b=."},
+		{name: "dot segment made of config and value", routePath: "/view", upstreamPath: "/public/.{query:a}/info", target: "/view?a=."},
+		{name: "dot value next to config text", routePath: "/view", upstreamPath: "/public/v{query:a}/info", target: "/view?a=.."},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var calls atomic.Int32
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls.Add(1)
+			}))
+			defer srv.Close()
+
+			hb := newStackHandlerBuilder(srv.Client())
+
+			h, err := hb.Build(config.Root{
+				Routes: []config.Route{
+					{
+						Path:   test.routePath,
+						Method: http.MethodGet,
+						Upstream: config.Upstream{
+							Scheme: "http",
+							Host:   srv.Listener.Addr().String(),
+							Path:   test.upstreamPath,
+						},
+					},
+				},
+			})
+			if err != nil {
+				t.Fatalf("expected nil error, got %v", err)
+			}
+
+			req := httptest.NewRequest(http.MethodGet, test.target, nil)
+			req.Header.Set("X-Name", "..")
+			rec := httptest.NewRecorder()
+			h.ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("expected status %d, got %d: %s", http.StatusBadRequest, rec.Code, rec.Body.String())
+			}
+			if got := rec.Header().Get("Content-Type"); got != "application/json" {
+				t.Fatalf("expected json content type, got %q", got)
+			}
+			if !strings.Contains(rec.Body.String(), `"code":"bad_request"`) {
+				t.Fatalf("expected bad_request code, got %s", rec.Body.String())
+			}
+			if strings.Contains(rec.Body.String(), "..") {
+				t.Fatalf("value leaked to client: %s", rec.Body.String())
+			}
+			if n := calls.Load(); n != 0 {
+				t.Fatalf("expected upstream not to be called, got %d calls", n)
+			}
+		})
+	}
+}
+
+// The same rules for the URL of a policy request.
+func TestStack_PolicyPathValues(t *testing.T) {
+	tests := []struct {
+		name       string
+		policyPath string
+		target     string
+
+		expStatus  int
+		expCode    string
+		expAuthURI string
+	}{
+		{
+			name:       "fragment sign in route value keeps path suffix",
+			policyPath: "/auth/{route:id}/check",
+			target:     "/resource/42%23",
+			expStatus:  http.StatusCreated,
+			expAuthURI: "/auth/42%23/check",
+		},
+		{
+			name:       "query and fragment signs in path value keep path suffix",
+			policyPath: "/auth/{query:id}/check",
+			target:     "/resource/1?id=42%3Fadmin%3Dtrue%23",
+			expStatus:  http.StatusCreated,
+			expAuthURI: "/auth/42%3Fadmin=true%23/check",
+		},
+		{
+			name:       "ampersand in query value does not add a parameter",
+			policyPath: "/auth/check?locale={query:locale}",
+			target:     "/resource/1?locale=lv%26admin%3Dtrue",
+			expStatus:  http.StatusCreated,
+			expAuthURI: "/auth/check?locale=lv%26admin%3Dtrue",
+		},
+		{
+			name:       "slashes in path value do not add segments",
+			policyPath: "/auth/{query:id}",
+			target:     "/resource/1?id=..%2Fadmin%2Fdelete",
+			expStatus:  http.StatusCreated,
+			expAuthURI: "/auth/..%2Fadmin%2Fdelete",
+		},
+		{
+			name:       "uuid is passed as before",
+			policyPath: "/auth/{route:id}/check",
+			target:     "/resource/3f2b8c1e-7a4d-4e9b-9c55-0d1a2b3c4d5e",
+			expStatus:  http.StatusCreated,
+			expAuthURI: "/auth/3f2b8c1e-7a4d-4e9b-9c55-0d1a2b3c4d5e/check",
+		},
+		{
+			name:       "two dots in path value",
+			policyPath: "/auth/{query:id}/check",
+			target:     "/resource/1?id=..",
+			expStatus:  http.StatusBadRequest,
+			expCode:    "bad_request",
+		},
+		{
+			name:       "one dot in route value",
+			policyPath: "/auth/{route:id}/check",
+			target:     "/resource/.",
+			expStatus:  http.StatusBadRequest,
+			expCode:    "bad_request",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			transport := &authStackRoundTripper{}
+			hb := newStackHandlerBuilder(&http.Client{Transport: transport})
+
+			h, err := hb.Build(config.Root{
+				Routes: []config.Route{
+					{
+						Path:   "/resource/{id}",
+						Method: http.MethodGet,
+						Checks: []config.Check{
+							{Type: "policy", Config: mustYAML(t, map[string]any{
+								"upstream": map[string]any{
+									"scheme": "http",
+									"host":   "auth.local",
+									"path":   test.policyPath,
+									"method": http.MethodPost,
+								},
+								"expected_status": http.StatusOK,
+								"store": map[string]any{
+									"user_id": "{body:id}",
+								},
+							})},
+						},
+						Upstream: config.Upstream{
+							Scheme: "http",
+							Host:   "api.local",
+						},
+					},
+				},
+			})
+			if err != nil {
+				t.Fatalf("expected nil error, got %v", err)
+			}
+
+			req := httptest.NewRequest(http.MethodGet, test.target, nil)
+			req.Header.Set("Authorization", "Bearer good")
+			rec := httptest.NewRecorder()
+			h.ServeHTTP(rec, req)
+
+			if rec.Code != test.expStatus {
+				t.Fatalf("expected status %d, got %d: %s", test.expStatus, rec.Code, rec.Body.String())
+			}
+
+			if test.expCode != "" {
+				if !strings.Contains(rec.Body.String(), `"code":"`+test.expCode+`"`) {
+					t.Fatalf("expected %s code, got %s", test.expCode, rec.Body.String())
+				}
+				if transport.authCalls != 0 || transport.apiCalls != 0 {
+					t.Fatalf("expected no requests, got %d policy and %d upstream calls", transport.authCalls, transport.apiCalls)
+				}
+				return
+			}
+
+			if transport.authCalls != 1 || transport.apiCalls != 1 {
+				t.Fatalf("expected one policy and one upstream call, got %d and %d", transport.authCalls, transport.apiCalls)
+			}
+			if transport.authURI != test.expAuthURI {
+				t.Fatalf("expected policy request %s, got %s", test.expAuthURI, transport.authURI)
+			}
+		})
 	}
 }

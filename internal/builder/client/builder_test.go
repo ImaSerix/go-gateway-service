@@ -17,6 +17,10 @@ func (m rendererMock) Render(s string, r *http.Request) (string, error) {
 	return s, nil
 }
 
+func (m rendererMock) RenderURL(s string, r *http.Request) (string, error) {
+	return m.Render(s, r)
+}
+
 type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) {

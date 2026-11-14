@@ -55,3 +55,33 @@ func TestMultiResolver(t *testing.T) {
 	}
 
 }
+
+// A route parameter is the decoded value whether or not the request has an escaped path.
+func TestRouterResolver_EscapedPath(t *testing.T) {
+	tests := []struct {
+		target string
+		exp    string
+	}{
+		{target: "/users/42", exp: "42"},
+		{target: "/users/42%23", exp: "42#"},
+		{target: "/users/a%2Fb", exp: "a/b"},
+		{target: "/users/a%252Fb", exp: "a%2Fb"},
+		{target: "/users/%2e%2e", exp: ".."},
+	}
+
+	for _, test := range tests {
+		t.Run(test.target, func(t *testing.T) {
+			var got any
+
+			router := chi.NewRouter()
+			router.Get("/users/{id}", func(w http.ResponseWriter, r *http.Request) {
+				got, _ = NewRouterResolver().Resolve(r, "id")
+			})
+			router.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, test.target, nil))
+
+			if got != test.exp {
+				t.Fatalf("expected %q, got %v", test.exp, got)
+			}
+		})
+	}
+}

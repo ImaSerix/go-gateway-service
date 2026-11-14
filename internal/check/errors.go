@@ -10,6 +10,7 @@ var (
 	ErrUnsupportedType       = errors.New("unsupported type")
 	ErrInvalidURL            = errors.New("invalid url")
 	ErrEmptyHost             = errors.New("empty host")
+	ErrBadRequest            = errors.New("bad request")
 	ErrUnauthorized          = errors.New("unauthorized")
 	ErrPolicyUnavailable     = errors.New("policy unavailable")
 	ErrEmptyURL              = errors.New("empty url")

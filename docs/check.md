@@ -50,6 +50,7 @@ Outcome for the client:
 | unreachable, or any other status (a redirect included) | `503`, code `auth_unavailable` |
 | `expected_status`, but `store` cannot read a value from the response | `503`, code `auth_unavailable` |
 | not called: `transform` of the internal request failed | `500`, code `internal_error` |
+| not called: a value from the request turns a path segment of `upstream.path` into `.` or `..` ([pattern.md](pattern.md#values-in-a-url)) | `400`, code `bad_request` |
 
 The body of the policy response is never passed to the client. Error format: [request-flow.md](request-flow.md#gateway-errors).
 

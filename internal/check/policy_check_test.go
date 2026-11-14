@@ -3,6 +3,7 @@ package check_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/ImaSerix/go-gateway-service/internal/check"
 	"github.com/ImaSerix/go-gateway-service/internal/pipeline"
+	"github.com/ImaSerix/go-gateway-service/internal/renderer"
 )
 
 type policyTransformerMock struct {
@@ -186,6 +188,11 @@ func TestPolicyCheck_ExecuteErrors(t *testing.T) {
 			name:     "policy service unreachable",
 			upstream: &policyUpstreamMock{err: errors.New("dial error")},
 			expErr:   check.ErrPolicyUnavailable,
+		},
+		{
+			name:     "dot segment value in policy url",
+			upstream: &policyUpstreamMock{err: fmt.Errorf("render: %w", renderer.ErrDotSegment)},
+			expErr:   check.ErrBadRequest,
 		},
 	}
 

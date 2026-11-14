@@ -29,7 +29,7 @@ func (c *Upstream) Do(base *http.Request) (*http.Response, error) {
 
 	r := base.Clone(base.Context())
 
-	u, err := c.render.Render(rawTarget(c.target), r)
+	u, err := c.render.RenderURL(rawTarget(c.target), r)
 	if err != nil {
 		return nil, err
 	}

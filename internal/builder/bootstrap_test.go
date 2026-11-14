@@ -21,6 +21,10 @@ func (rm *rendererMock) Render(s string, r *http.Request) (string, error) {
 	return rm.res, rm.err
 }
 
+func (rm *rendererMock) RenderURL(s string, r *http.Request) (string, error) {
+	return rm.Render(s, r)
+}
+
 func TestBootstrap_RegisterMiddlewares(t *testing.T) {
 	tests := []struct {
 		name    string

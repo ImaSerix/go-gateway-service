@@ -3,11 +3,13 @@ package check
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 
 	"github.com/ImaSerix/go-gateway-service/internal/pipeline"
+	"github.com/ImaSerix/go-gateway-service/internal/renderer"
 )
 
 type UpstreamClient interface {
@@ -71,6 +73,10 @@ func (c *PolicyCheck) Execute(ctx context.Context, r *http.Request) (context.Con
 	}
 
 	resp, err := c.upstream.Do(newRequest)
+	if errors.Is(err, renderer.ErrDotSegment) {
+		// The request itself is wrong, the policy service was not called.
+		return nil, fmt.Errorf("%w: %v", ErrBadRequest, err)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrPolicyUnavailable, err)
 	}

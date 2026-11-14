@@ -159,6 +159,22 @@ func TestEndpoint_ServeHTTP(t *testing.T) {
 			},
 		},
 		{
+			name:         "check failed: bad request",
+			reqMethod:    "GET",
+			endpointMeth: "GET",
+
+			checkErr:       fmt.Errorf("%w: value makes a dot segment", check.ErrBadRequest),
+			middlewarePass: true,
+
+			expCode:    http.StatusBadRequest,
+			expErrCode: "bad_request",
+			expCalls: []string{
+				"middleware-1",
+				"middleware-2",
+				"check-1",
+			},
+		},
+		{
 			name:         "check failed: unauthorized",
 			reqMethod:    "GET",
 			endpointMeth: "GET",

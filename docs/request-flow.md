@@ -19,6 +19,7 @@ When the gateway itself rejects a request, it answers with JSON and `Content-Typ
 
 | Situation | Status | `code` |
 | --- | --- | --- |
+| A value from the request turns a path segment of the upstream URL or of the `policy` request URL into `.` or `..` ([pattern.md](pattern.md#values-in-a-url)) | `400` | `bad_request` |
 | `policy`: the policy service answered `401` | `401` | `unauthorized` |
 | `policy`: the policy service is unreachable, answered with a status other than the expected one and `401` (a redirect included), or `store` cannot read its response | `503` | `auth_unavailable` |
 | No route for the path | `404` | `not_found` |

@@ -96,6 +96,8 @@ func (e *Endpoint) serve(w http.ResponseWriter, r *http.Request) {
 // The error text itself is never sent to the client.
 func writeCheckError(w http.ResponseWriter, err error) {
 	switch {
+	case errors.Is(err, check.ErrBadRequest):
+		httperror.Write(w, http.StatusBadRequest, httperror.CodeBadRequest, "invalid request")
 	case errors.Is(err, check.ErrUnauthorized):
 		httperror.Write(w, http.StatusUnauthorized, httperror.CodeUnauthorized, "authentication required")
 	case errors.Is(err, check.ErrPolicyUnavailable):
