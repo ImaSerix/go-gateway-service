@@ -1,13 +1,17 @@
 package builder_test
 
 import (
+	"bufio"
+	"bytes"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/ImaSerix/go-gateway-service/internal/builder"
 	"github.com/ImaSerix/go-gateway-service/internal/builder/check"
@@ -1080,5 +1084,180 @@ func TestStack_RouteValueInTransformsIsNotChanged(t *testing.T) {
 	// The path of the same request has the value encoded once.
 	if transport.apiURI != "/api/a%2Fb?copy=a%252Fb" {
 		t.Fatalf("expected upstream /api/a%%2Fb?copy=a%%252Fb, got %s", transport.apiURI)
+	}
+}
+
+// wsRouteConfig is the GET /ws route as in the deployment config: global middlewares
+// (logging and metric among them), query_required + policy with the token from the query.
+const wsRouteConfig = `
+server:
+  middlewares:
+    - type: recovery
+    - type: logging
+    - type: metric
+    - type: request_id
+    - type: strip_headers
+      config:
+        headers:
+          - X-User-ID
+routes:
+  - path: /ws
+    method: GET
+    checks:
+      - type: query_required
+        config:
+          query_params:
+            - token
+      - type: policy
+        config:
+          transform:
+            header:
+              Authorization: "Bearer {query:token}"
+          upstream:
+            scheme: http
+            host: AUTH_HOST
+            path: /auth/validate
+            method: POST
+          expected_status: 200
+          store:
+            user_id: "{body:id}"
+    transforms:
+      header:
+        X-User-ID: "{context:user_id}"
+    upstream:
+      scheme: http
+      host: MESSAGE_HOST
+`
+
+// wsFrame is a WebSocket text frame "hello" from the server (not masked).
+var wsFrame = []byte{0x81, 0x05, 'h', 'e', 'l', 'l', 'o'}
+
+func newWSGateway(t *testing.T) *httptest.Server {
+	t.Helper()
+
+	authSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/auth/validate" || r.Header.Get("Authorization") != "Bearer good" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"user-1"}`))
+	}))
+	t.Cleanup(authSrv.Close)
+
+	// The Message stand-in answers the handshake and sends one frame.
+	messageSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.Path != "/ws" || r.Header.Get("X-User-ID") != "user-1" ||
+			!strings.EqualFold(r.Header.Get("Upgrade"), "websocket") {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		conn, rw, err := http.NewResponseController(w).Hijack()
+		if err != nil {
+			t.Errorf("message hijack: %v", err)
+			return
+		}
+		defer conn.Close()
+		_, _ = rw.WriteString("HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n")
+		_, _ = rw.Write(wsFrame)
+		_ = rw.Flush()
+		// Keep the connection open until the client closes it.
+		_, _ = io.Copy(io.Discard, rw)
+	}))
+	t.Cleanup(messageSrv.Close)
+
+	raw := strings.NewReplacer(
+		"AUTH_HOST", strings.TrimPrefix(authSrv.URL, "http://"),
+		"MESSAGE_HOST", strings.TrimPrefix(messageSrv.URL, "http://"),
+	).Replace(wsRouteConfig)
+	var cfg config.Root
+	if err := yaml.Unmarshal([]byte(raw), &cfg); err != nil {
+		t.Fatal(err)
+	}
+
+	h, err := newStackHandlerBuilder(&http.Client{}).Build(cfg)
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+
+	gw := httptest.NewServer(h)
+	t.Cleanup(gw.Close)
+	return gw
+}
+
+// wsHandshake sends a WebSocket handshake to the gateway and returns the response
+// and the reader of the connection after it.
+func wsHandshake(t *testing.T, gw *httptest.Server, target string) (*http.Response, *bufio.Reader) {
+	t.Helper()
+
+	conn, err := net.Dial("tcp", strings.TrimPrefix(gw.URL, "http://"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { conn.Close() })
+	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
+
+	req, err := http.NewRequest(http.MethodGet, gw.URL+target, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Connection", "Upgrade")
+	req.Header.Set("Upgrade", "websocket")
+	req.Header.Set("Sec-WebSocket-Version", "13")
+	req.Header.Set("Sec-WebSocket-Key", "dGhlIHNhbXBsZSBub25jZQ==")
+	if err := req.Write(conn); err != nil {
+		t.Fatal(err)
+	}
+
+	br := bufio.NewReader(conn)
+	resp, err := http.ReadResponse(br, req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return resp, br
+}
+
+func TestStack_WebSocketThroughMiddlewareChain(t *testing.T) {
+	gw := newWSGateway(t)
+
+	resp, br := wsHandshake(t, gw, "/ws?token=good")
+	if resp.StatusCode != http.StatusSwitchingProtocols {
+		t.Fatalf("expected status %d, got %d", http.StatusSwitchingProtocols, resp.StatusCode)
+	}
+
+	got := make([]byte, len(wsFrame))
+	if _, err := io.ReadFull(br, got); err != nil {
+		t.Fatalf("read frame: %v", err)
+	}
+	if !bytes.Equal(got, wsFrame) {
+		t.Fatalf("expected frame %v, got %v", wsFrame, got)
+	}
+}
+
+func TestStack_WebSocketRejected(t *testing.T) {
+	tests := []struct {
+		name       string
+		target     string
+		expCode    int
+		expErrCode string
+	}{
+		{name: "no token", target: "/ws", expCode: http.StatusForbidden, expErrCode: "forbidden"},
+		{name: "invalid token", target: "/ws?token=bad", expCode: http.StatusUnauthorized, expErrCode: "unauthorized"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			gw := newWSGateway(t)
+
+			resp, _ := wsHandshake(t, gw, test.target)
+			defer resp.Body.Close()
+			if resp.StatusCode != test.expCode {
+				t.Fatalf("expected status %d, got %d", test.expCode, resp.StatusCode)
+			}
+			body, _ := io.ReadAll(resp.Body)
+			if !strings.Contains(string(body), `"code":"`+test.expErrCode+`"`) {
+				t.Fatalf("expected code %q, got body %s", test.expErrCode, body)
+			}
+		})
 	}
 }

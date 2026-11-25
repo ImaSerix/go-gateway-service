@@ -28,3 +28,32 @@ The answer is the same when the request context is already cancelled or its dead
 If a value turns a path segment into `.` or `..` ([pattern.md](pattern.md#values-in-a-url)), the gateway answers `400` with code `bad_request`, also when another template of the same path cannot be rendered. The request is not sent to the upstream either.
 
 `Rewrite` cannot return an error, so it clears the address of the outgoing request and puts the error into its context; `ErrorHandler` finds the error there and writes the `500` or the `400`. Any other transport error is answered with `502` `upstream_unavailable` ([request-flow.md](request-flow.md#gateway-errors)).
+
+## WebSocket
+
+`httputil.ReverseProxy` proxies a WebSocket handshake (`Connection: Upgrade`, `Upgrade: websocket`) as is: when the upstream answers `101`, the proxy takes over the client connection and copies bytes in both directions until one side closes it. The route is a regular `GET` route; checks and transforms run before the handshake is sent on. Every middleware on the way must let the connection be taken over: the response writer wrapper of `logging` and `metric` implements `Hijack` and `Unwrap`.
+
+A browser cannot set headers on a WebSocket handshake, so a token for such a route comes in the query, for example `?token=...`, and a `policy` check moves it into a header of its request with `transform`. Put `query_required` before it: without the parameter the answer is `403` `forbidden`, not the `500` of a failed transform.
+
+```yaml
+- path: /ws
+  method: GET
+  checks:
+    - type: query_required
+      config:
+        query_params: [token]
+    - type: policy
+      config:
+        transform:
+          header:
+            Authorization: "Bearer {query:token}"
+        upstream: {scheme: http, host: auth:8080, path: /auth/validate, method: POST}
+        store:
+          user_id: "{body:id}"
+  transforms:
+    header:
+      X-User-ID: "{context:user_id}"
+  upstream: {scheme: http, host: message:8080}
+```
+
+The query string is passed on to the upstream as for any route; the gateway log has only the path.

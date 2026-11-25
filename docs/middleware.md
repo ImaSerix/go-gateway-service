@@ -61,7 +61,7 @@ middlewares:
   - type: logging
 ```
 
-Logs basic request information.
+Logs basic request information: method, path (without the query string), status and duration. For a WebSocket the status is `101` and the duration is the whole life of the connection.
 
 ## request_id
 
@@ -100,6 +100,8 @@ middlewares:
 ```
 
 Collects simple request metrics.
+
+`logging` and `metric` wrap the response writer to see the status. The wrapper keeps `Hijack` and `Unwrap`, so a WebSocket upgrade through the proxy works with them ([proxy.md](proxy.md#websocket)).
 
 ## inject
 
