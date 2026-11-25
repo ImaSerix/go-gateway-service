@@ -170,6 +170,7 @@ type authStackRoundTripper struct {
 	authHeader  string
 	authUserID  string
 	apiCalls    int
+	apiMethod   string
 	apiPath     string
 	apiQuery    string
 	apiURI      string
@@ -218,6 +219,7 @@ func (rt *authStackRoundTripper) RoundTrip(r *http.Request) (*http.Response, err
 		}
 	case "api.local":
 		rt.apiCalls++
+		rt.apiMethod = r.Method
 		rt.apiPath = r.URL.Path
 		rt.apiQuery = r.URL.RawQuery
 		rt.apiURI = r.URL.RequestURI()
@@ -269,6 +271,22 @@ func TestStack_TokenCheckSetsUserID(t *testing.T) {
 			method:     http.MethodPatch,
 			target:     "/chats/7/messages",
 			body:       `{"text":"edited"}`,
+			token:      "Bearer good",
+			expCode:    http.StatusCreated,
+			expAPIPath: "/chats/7/messages",
+		},
+		{
+			name:       "PUT without body",
+			method:     http.MethodPut,
+			target:     "/chats/7/messages",
+			token:      "Bearer good",
+			expCode:    http.StatusCreated,
+			expAPIPath: "/chats/7/messages",
+		},
+		{
+			name:       "DELETE without body",
+			method:     http.MethodDelete,
+			target:     "/chats/7/messages",
 			token:      "Bearer good",
 			expCode:    http.StatusCreated,
 			expAPIPath: "/chats/7/messages",
@@ -403,6 +421,9 @@ func TestStack_TokenCheckSetsUserID(t *testing.T) {
 
 			if transport.apiUserID != "user-1" {
 				t.Fatalf("expected verified X-User-ID, got %q", transport.apiUserID)
+			}
+			if transport.apiMethod != test.method {
+				t.Fatalf("expected upstream method %s, got %s", test.method, transport.apiMethod)
 			}
 			if transport.apiPath != test.expAPIPath || transport.apiQuery != test.expQuery {
 				t.Fatalf("expected upstream %s?%s, got %s?%s", test.expAPIPath, test.expQuery, transport.apiPath, transport.apiQuery)
